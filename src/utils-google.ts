@@ -122,6 +122,19 @@ export class SpreadsheetAppUtils
     }
     throw new Error("Not found: " + name);
   }
+  static create(fileName: string, folder?: IFolder | string): IFile {
+    const file = SpreadsheetAppUtils.MySpreadsheetApp.create(fileName);
+    if (!!folder) {
+      if (typeof folder === "string") folder = DriveUtils.getSingleFolder(folder);
+      const copyFile = DriveUtils.MyDriveApp.getFileById(file.getId());
+      folder.addFile(<IFile>copyFile);
+      DriveUtils.MyDriveApp.getRootFolder().removeFile(<IFile>copyFile);
+  
+      //file = DriveUtils.getFileInFolderId(fileName, folder.getId());
+      // if (!file) { throw "Failed to copy file to " + folder.getName(); }
+    }
+    return file;
+  }
 }
 
 export class DriveUtils {
@@ -139,7 +152,11 @@ export class DriveUtils {
     return DriveUtils.iterateSingle(DriveUtils.MyDriveApp.getFilesByName(name));
   }
 
-  static getFilesInFolder(folder: IFolder, predicate: (item: IFile) => boolean): IFile[] {
+  static getFilesInFolderName(folderName: string, predicate?: (item: IFile) => boolean): IFile[] {
+    const folder = DriveUtils.getSingleFolder(folderName);
+    return DriveUtils.iterateToArray(folder.getFiles(), predicate);
+  }
+  static getFilesInFolder(folder: IFolder, predicate?: (item: IFile) => boolean): IFile[] {
     return DriveUtils.iterateToArray(folder.getFiles(), predicate);
   }
   static getFileInFolder(fileName: string, folderName: string): IFile | null {
@@ -160,7 +177,7 @@ export class DriveUtils {
 }
 
 static getOrCreateSpreadsheet(fileName: string, folderName: string): IFile {
-      const folder = DriveUtils.iterateToFirst(DriveUtils.MyDriveApp.getFoldersByName(folderName));
+      const folder = DriveUtils.getSingleFolder(folderName); //.iterateToFirst(DriveUtils.MyDriveApp.getFoldersByName(folderName));
       if (!folder) {
         throw new Error("No folder: " + folderName);
       }
@@ -171,16 +188,8 @@ static getOrCreateSpreadsheet(fileName: string, folderName: string): IFile {
       if (file) {
           return file;
       } else {
-          Logger.log("Creating file " + fileName);
-          file = SpreadsheetApp.create(fileName);
-          const copyFile = DriveApp.getFileById(file.getId());
-          folder.addFile(<IFile>copyFile);
-          DriveUtils.MyDriveApp.getRootFolder().removeFile(<IFile>copyFile);
-  
-          file = DriveUtils.getFileInFolderId(fileName, folderId);
-          if (!file) {
-              throw "Failed to copy file to " + folderName;
-          }
+          //Logger.log("Creating file " + fileName);
+          file = SpreadsheetAppUtils.create(fileName, folder);
           return file;
       }
 
@@ -193,7 +202,7 @@ static iterateSingle<T>(iterator: IIterator<T>): T {
   return result;
 
 }
-  static iterateToArray<T>(iterator: IIterator<T>, predicate: (item: T) => boolean): T[] {
+  static iterateToArray<T>(iterator: IIterator<T>, predicate?: (item: T) => boolean): T[] {
     const result: T[] = [];
     while (iterator.hasNext()) {
         var next = iterator.next();

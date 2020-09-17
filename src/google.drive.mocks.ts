@@ -5,6 +5,9 @@ export class MockFileSystemObject {
     protected name: string = "";
     parents: IFolder[] = [];
 
+    constructor(name?: string) {
+        this.name = name || "";
+    }
     getId(): string {
         return this.id;
     }
@@ -17,15 +20,15 @@ export class MockFileSystemObject {
 }
 
 export class MockFile extends MockFileSystemObject implements IFile {
-    data: any;
-    constructor() {
-        super();
+    content: any;
+    constructor(name?: string, content?: any) {
+        super(name);
+        this.content = content;
     }
-    static create(name: string, info: any): IFile {
-        const result = new MockFile();
-        result.name = name;
+    static create(name: string, info: { content: any, id: (string | null)}): IFile {
+        const result = new MockFile(name, null);
         result.id = (info || {}).id || name;
-        result.data = (info || {}).data;
+        result.content = (info || {}).content;
         return result;
     }
 }
@@ -33,8 +36,8 @@ export class MockFile extends MockFileSystemObject implements IFile {
 export class MockFolder extends MockFileSystemObject implements IFolder {
     private files: IFile[] = [];
     private folders: IFolder[] = [];
-    constructor() {
-        super();
+    constructor(name?: string) {
+        super(name);
     }
     getFiles(): IFileIterator {
         return new MyIterator<IFile>(this.files);
@@ -113,6 +116,14 @@ export class MockDriveApp implements IDriveApp {
         }
     }
 
+    createFile(name: string, content: any, mimeType: string): IFile {
+        const file = new MockFile(name, content);
+        this.root.addFile(file);
+        return file;
+    }
+    createFolder(name: string): IFolder {
+        throw new Error("Not implemented");
+    }
     getFilesByName(name: string): IFileIterator {
         const result: IFile[] = [];
         this.getAllFilesRecursive(this.root, result);

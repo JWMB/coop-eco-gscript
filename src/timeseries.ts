@@ -187,9 +187,9 @@ export class Timeseries {
 
     var applyFilters = (dataToFilter: any[][]) => {
       if (funcFilters) {
-        Logger.log('filtering started: ' + dataToFilter.length);
+        // Logger.log('filtering started: ' + dataToFilter.length);
         funcFilters.forEach(f => (dataToFilter = f(dataToFilter)));
-        Logger.log('after filtering: ' + dataToFilter.length);
+        // Logger.log('after filtering: ' + dataToFilter.length);
       }
       return dataToFilter;
     };

@@ -1,5 +1,5 @@
 import { DriveUtils, ICell, IChart, IDriveApp, IFile, IFilterCriteria, ISheet, ISheetFilter, ISheetRange, ISpreadsheet, ISpreadsheetApp } from "./utils-google";
-import { MockFile } from './google.drive.mocks'
+import { MockDriveApp, MockFile } from './google.drive.mocks'
 export class MockSpreadsheetApp implements ISpreadsheetApp {
     drive: IDriveApp;
     constructor(drive: IDriveApp) {
@@ -9,15 +9,16 @@ export class MockSpreadsheetApp implements ISpreadsheetApp {
         throw new Error("Method not implemented.");
     }
     open(file: IFile): ISpreadsheet {
-        return (<MockFile>file).data;
+        return (<MockFile>file).content;
     }
     create(name: string): IFile {
-        throw new Error("Method not implemented.");
+        const mockDrive = <MockDriveApp>this.drive;
+        return mockDrive.createFile(name, new MockSpreadsheet([ new MockSheet("0", [[]])]), "SPREADSHEET");
     }
     openById(id: string): ISpreadsheet {
         const file =this.drive.getFileById(id);
         if (!file) throw new Error("File not found: " + id);
-        return <ISpreadsheet>(<MockFile>file).data;
+        return <ISpreadsheet>(<MockFile>file).content;
     }
 }
 
@@ -48,9 +49,6 @@ export class MockSheetRange implements ISheetRange {
         // this.rows = rows;
         this.sheet = sheet;
     }
-    toString() {
-        return `c${this.view.x},r${this.view.y},#c${this.view.width},#r${this.view.height},`;
-    }
     private view = { x: 0, y: 0, width: Number.MAX_VALUE, height: Number.MAX_VALUE }; //{ x: number, y: number, width: number, height: number}
     offset(rowOffset: number, columnOffset: number, numRows?: number, numColumns?: number): ISheetRange {
         const result = new MockSheetRange(this.sheet);
@@ -62,38 +60,58 @@ export class MockSheetRange implements ISheetRange {
     }
 
     getValues(): any[][] {
-        const rows = this.sheet.rows.slice(this.view.y, (this.view.height == undefined || this.view.height == Number.MAX_VALUE)? undefined : this.view.y + this.view.height);
-        return rows.map(r => r.slice(this.view.x, (this.view.width == undefined || this.view.width == Number.MAX_VALUE) ? undefined : this.view.x + this.view.width));
+        const rows = this.sheet.rows.slice(this.view.y, this.view.height == undefined ? undefined : this.view.y + this.view.height);
+        return rows.map(r => r.slice(this.view.x, this.view.width == undefined ? undefined : this.view.x + this.view.width));
     }
     getCell(rowIndexBase1: number, colIndexBase1: number): ICell {
-        return new MockCell(this.sheet, this.view.y + colIndexBase1 - 1, this.view.x + rowIndexBase1 - 1);
+        return new MockCell(this.sheet, this.view.y + rowIndexBase1 - 1, this.view.x + colIndexBase1 - 1);
     }
     getHeight(): number {
         const curr = this.sheet.rows.length - this.view.y;
         return Math.min(this.view.height, curr);
     }
     clearContent(): void {
-        throw new Error("NotImplemented");
-        //this.sheet.rows.splice(0, this.rows.length);
+        const maxRow = Math.min(this.sheet.rows.length - 1, this.view.y + this.view.height);
+        for (let ri = this.view.y; ri <= maxRow; ri++) {
+            const row = this.sheet.rows[ri];
+            const maxCol = Math.min(row.length - 1, this.view.x + this.view.width);
+            for (let ci = this.view.x; ci <= maxCol; ci++) {
+                row[ci] = "";
+            }
+        }
     }
 }
 export class MockCell implements ICell {
     private sheet: MockSheet;
-    private x: number;
-    private y: number;
-    constructor(sheet: MockSheet, x: number, y: number) {
+    private row: number;
+    private col: number;
+    constructor(sheet: MockSheet, row: number, col: number) {
         this.sheet = sheet;
-        this.x = x;
-        this.y = y;
+        this.row = row;
+        this.col = col;
     }
     setValue(val: any): void {
-        this.sheet.rows[this.y][this.x] = val;
+        if (this.row >= this.sheet.rows.length) {
+            for (let i = this.sheet.rows.length - 1; i < this.row; i++) {
+                this.sheet.rows.push([]);
+            }
+        }
+        const rr = this.sheet.rows[this.row];
+        if (this.col >= rr.length) {
+            for (let i = rr.length - 1; i < this.col; i++) {
+                rr.push("");
+            }
+        }
+        rr[this.col] = val;
     }
     getValue() {
-        return this.sheet.rows[this.y][this.x];
+        return this.sheet.rows[this.row][this.col];
     }
     setFontColor(val: string): void {
         throw new Error("Method not implemented.");
+    }
+    toString() {
+        return `r${this.row}c${this.col} ${this.getValue()}`;
     }
 }
 export class MockChart implements IChart {
@@ -132,8 +150,8 @@ export class MockSheet implements ISheet {
     getDataRange(): ISheetRange {
         return new MockSheetRange(this);
     }
-    getRange(rowIndex: number, colIndex: number, rowCount?: number, colCount?: number) {
-        return new MockSheetRange(this).offset(rowIndex, colIndex, rowCount, colCount);
+    getRange(rowIndexBase1: number, colIndexBase1: number, rowCount?: number, colCount?: number) {
+        return new MockSheetRange(this).offset(rowIndexBase1 - 1, colIndexBase1 - 1, rowCount || 1, colCount || 1);
     }
     setName(name: string) { this.name = name; }
     clear(): void { 
