@@ -35,7 +35,7 @@ export class Budgeteer {
         //Insert into year columns of Konton spreadsheet:
         columns = SheetUtils.getHeaderColumnsAsObject(sheet);
 
-        const rowIndexToAccountId = Budgeteer.getAccountIdToRowIndex(sheet, columns.Konto, true);
+        const rowIndexToAccountId = Budgeteer.getRowIndexToAccountId(sheet, columns.Konto);
         const years = Object.keys(columns).filter(k => k.length == 4)
             .map(k => parseFloat(k)).filter(k => !!k);
 
@@ -53,39 +53,37 @@ export class Budgeteer {
             for (let rowIndex = 1; rowIndex < numRows; rowIndex++) {
                 const accountId = rowIndexToAccountId[rowIndex];
                 const cell = sheet.getRange(rowIndex + 1, columns[year.toString()] + 1).getCell(1, 1);
-                //console.log(accountId, cell.getValue(), accountId ? byAccount[accountId] : "");
                 cell.setValue(accountId ? (byAccount[accountId] || "") : "");
             }
         });
     }
-    static getAccountIdToRowIndex(sheet: ISheet, accountIdColumnIndex: number, rowIndexToAccountIdInstead: boolean) {
+    static getRowIndexToAccountId(sheet: ISheet, accountIdColumnIndex: number) {
         //row index 1 = first row under header row
-        var result: KeyValueMap<number> = {};
+        const result: KeyValueMap<number> = {};
 
-        var numRows = sheet.getDataRange().getHeight();
-        var range = sheet.getRange(2, accountIdColumnIndex + 1, numRows);
-        for (var i = 1; i < numRows; i++) {
-            var accountId = range.getCell(i, 1).getValue();
-            if (!!accountId && accountId != " ") {
-                if (rowIndexToAccountIdInstead) { result[i.toString()] = accountId; }
-                else { result[accountId.toString()] = i; }
+        const numRows = sheet.getDataRange().getHeight();
+        const range = sheet.getRange(2, accountIdColumnIndex + 1, numRows);
+        for (let i = 1; i < numRows; i++) {
+            const cellVal = range.getCell(i, 1).getValue();
+            const accountId = parseFloat(cellVal);
+            if (isNaN(accountId) || !accountId) { //!!accountId && accountId != " " && !isNaN(parseFloat(accountId))) {
+                break; // Stop when we're through top porting
             }
+            result[i.toString()] = accountId;
         }
         return result;
     }
-
-    // function test() {
-    //     var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
-    //     //fillWithTotalAmounts(sheet);
-    //     //fillBudgetValues(sheet, 'Budget 2019', "190911 Resultaträkning");
-    //     //fillBudgetRelative(sheet, '2019', 'Budget 2019', 'Rel 2019');
-    //     fillResponsibilitySpreadsheets();
+    // static getAccountIdToRowIndex(sheet: ISheet, accountIdColumnIndex: number) {
+    //     const r2a = Budgeteer.getRowIndexToAccountId(sheet, accountIdColumnIndex);
+    //     const result: KeyValueMap<number> = {};
+    //     Object.keys(r2a).forEach(k => result[r2a[k].toString()] = parseFloat(k));
+    //     return result;
     // }
 
     runCollect() {
-        const budgetRows = this.collectFromResponsibilitySheets();
+        const budgetRows = Budgeteer.collectFromResponsibilitySheets();
 
-        const filtered = this.filterCollectedBudgetRows(budgetRows);
+        const filtered = Budgeteer.filterCollectedBudgetRows(budgetRows);
 
         // transfer to main sheet
         const columns = toObject(budgetRows[0], (v, i) => [v, i]);
@@ -135,7 +133,7 @@ export class Budgeteer {
         SheetUtils.fillSheet(collectedTargetSheet, budgetRows.concat(summaryRows), 0, 0);
     }
 
-    collectFromResponsibilitySheets() {
+    static collectFromResponsibilitySheets() {
         // Collect rows from each responsibility spreadsheet and enter into target sheet
         const folder = DriveUtils.getSingleFolder("Budget2020");
         const filePrefix = "Budget ";
@@ -162,7 +160,7 @@ export class Budgeteer {
         return allRows;
     }
 
-    filterCollectedBudgetRows(budgetRows: any[][]) {
+    static filterCollectedBudgetRows(budgetRows: any[][]) {
         return budgetRows.filter(row => !isNaN(parseFloat(row[0])) && !isNaN(parseFloat(row[2])));
     }
 
@@ -238,7 +236,7 @@ export class Budgeteer {
     }
 
 
-    createChart(sheet: ISheet, range: ISheetRange, title: string, chartNum: number) {
+    static createChart(sheet: ISheet, range: ISheetRange, title: string, chartNum: number) {
         const size = { width: 1300, height: 700 };
         const leftChartArea = 10;
         const posXY = { x: chartNum % 2, y: Math.floor(chartNum / 2) };
@@ -257,8 +255,13 @@ export class Budgeteer {
         sheet.insertChart(chart);
     }
 
-    fillResponsibilitySpreadsheets() {
-        const ss = this.transactionSpreadsheet;
+    static fillResponsibilitySpreadsheets(
+        kontonSpreadsheet: ISpreadsheet, 
+        transactionSpreadsheet: ISpreadsheet, 
+        filterResponsibilities?: string[],
+        folderForSpreadsheets: string = "Budget2021")
+        {
+        const ss = transactionSpreadsheet;
         const txSheet = ss.getSheets()[0];
         let txData = txSheet.getDataRange().getValues();
 
@@ -273,7 +276,7 @@ export class Budgeteer {
         txColumns = toObject(txHeaderRow, (cell, i) => [cell, i]); //Re-index columns
         txData = txData.slice(1);
 
-        const sheet = SpreadsheetAppUtils.MySpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+        const sheet = kontonSpreadsheet.getSheets()[0]; //SpreadsheetAppUtils.MySpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
         const columns = SheetUtils.getHeaderColumnsAsObject(sheet);
 
         const data = sheet.getDataRange().getValues();
@@ -281,10 +284,13 @@ export class Budgeteer {
 
         for (let role in byResponsibility) {
             //"Tak och plåt", "Kassör", "Sekreterare","Ordförande", "Utemiljö", "Förvaltarkontakt", "Reparationer", "Ventilation och värme", "Fasader och fönster", "Asfalt"
-            if (["Kassör"].indexOf(role) < 0) { Logger.log("Skip " + role); continue; }
-            Logger.log("Role: " + role);
+            if (filterResponsibilities && filterResponsibilities.indexOf(role) < 0) { 
+                Logger.log("Skip " + role); 
+                continue;
+             }
+            // Logger.log("Role: " + role);
 
-            const file = DriveUtils.getOrCreateSpreadsheet("Budget " + role, "Budget2020");
+            const file = DriveUtils.getOrCreateSpreadsheet("Budget " + role, folderForSpreadsheets);
             const spreadsheet = SpreadsheetAppUtils.MySpreadsheetApp.open(file);
             let targetSheet = spreadsheet.getSheets()[0];
 
@@ -311,7 +317,6 @@ export class Budgeteer {
             targetSheet.getDataRange().clearContent();
             SheetUtils.fillSheet(targetSheet, rowsWithHeader);
 
-
             //Get relevant rows from Transactions sheet (based on accountIds):
             const accountIds = byResponsibility[role].map(row => row[columns.Konto]);
             const accountIdToName = toObject(byResponsibility[role], function (row) { return [row[columns.Konto], row[columns.Namn]]; });
@@ -335,34 +340,35 @@ export class Budgeteer {
             txDataForResp = [txHeaderRow].concat(txDataForResp);
             SheetUtils.fillSheet(targetSheet, txDataForResp);
 
+            // Budgeteer.createChartSheet(spreadsheet, targetSheet, accountIds);
+        }
+    }
 
-            //Create multiple tables (one for each account, with lines for each year) in same sheet - create chart for each table
-            const chartSheet = SheetUtils.getOrCreateSheet("Graf", true, spreadsheet);
-            let rowIndex = 0;
-            const chartSources: { accountId: number, rowStart: number, rowCount: number, colCount: number }[] = [];
-            for (var i = 0; i < accountIds.length; i++) {
-                const accountId = accountIds[i];
-                const filters = Timeseries.createFilters(txColumns, new RegExp("^" + accountId), undefined, undefined);
-                const inYear = Timeseries.recalc(targetSheet, 2, undefined, undefined, filters);
-                //TODO: only add if there's any actual data (inYear will have 365 rows regardless of data)
+    static createChartSheet(spreadsheet: ISpreadsheet, transactionSheet: ISheet, accountIds: number[], txColumns: KeyValueMap<number>, accountIdToName: KeyValueMap<any>) {
+        //Create multiple tables (one for each account, with lines for each year) in same sheet - create chart for each table
+        const chartSheet = SheetUtils.getOrCreateSheet("Graf", true, spreadsheet);
+        let rowIndex = 0;
+        const chartSources: { accountId: number, rowStart: number, rowCount: number, colCount: number }[] = [];
+        for (var i = 0; i < accountIds.length; i++) {
+            const accountId = accountIds[i];
+            const filters = Timeseries.createFilters(txColumns, new RegExp("^" + accountId), undefined, undefined);
+            const inYear = Timeseries.recalc(transactionSheet, 2, undefined, undefined, filters);
+            //TODO: only add if there's any actual data (inYear will have 365 rows regardless of data)
 
-                if (inYear.length > 0) {
-                    SheetUtils.fillSheet(chartSheet, inYear, rowIndex, 0);
-                    chartSources.push({ accountId: accountId, rowStart: rowIndex, rowCount: inYear.length, colCount: inYear[0].length });
-                    rowIndex += inYear.length;
-                }
+            if (inYear.length > 0) {
+                SheetUtils.fillSheet(chartSheet, inYear, rowIndex, 0);
+                chartSources.push({ accountId: accountId, rowStart: rowIndex, rowCount: inYear.length, colCount: inYear[0].length });
+                rowIndex += inYear.length;
             }
+        }
 
-            chartSheet.getCharts().forEach(chart => chartSheet.removeChart(chart));
+        chartSheet.getCharts().forEach(chart => chartSheet.removeChart(chart));
 
-            Logger.log("Add charts " + chartSources.length);
-            for (let chartIndex = 0; chartIndex < chartSources.length; chartIndex++) {
-                const src = chartSources[chartIndex];
-                Logger.log("Chart range: " + src.accountId + " " + src.rowStart + " " + src.rowCount + " " + src.colCount);
-                this.createChart(chartSheet, chartSheet.getRange(src.rowStart + 1, 1, src.rowCount, src.colCount), '' + src.accountId + ' ' + accountIdToName[src.accountId], chartIndex);
-            }
-
-            //return; //Just do one
+        Logger.log("Add charts " + chartSources.length);
+        for (let chartIndex = 0; chartIndex < chartSources.length; chartIndex++) {
+            const src = chartSources[chartIndex];
+            Logger.log("Chart range: " + src.accountId + " " + src.rowStart + " " + src.rowCount + " " + src.colCount);
+            Budgeteer.createChart(chartSheet, chartSheet.getRange(src.rowStart + 1, 1, src.rowCount, src.colCount), '' + src.accountId + ' ' + accountIdToName[src.accountId], chartIndex);
         }
     }
 
@@ -392,9 +398,9 @@ export class Budgeteer {
 
     static applyFilters(dataToFilter: any[][], funcFilters: Array<(row: any[][]) => any[][]>) {
         if (funcFilters) {
-            Logger.log('filtering started: ' + dataToFilter.length);
+            // Logger.log('filtering started: ' + dataToFilter.length);
             funcFilters.forEach(f => dataToFilter = f(dataToFilter));
-            Logger.log('after filtering: ' + dataToFilter.length);
+            // Logger.log('after filtering: ' + dataToFilter.length);
         }
         return dataToFilter;
     }
