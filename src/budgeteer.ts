@@ -36,7 +36,6 @@ export class Budgeteer {
         columns = SheetUtils.getHeaderColumnsAsObject(sheet);
 
         const rowIndexToAccountId = Budgeteer.getAccountIdToRowIndex(sheet, columns.Konto, true);
-        console.log(rowIndexToAccountId);
         const years = Object.keys(columns).filter(k => k.length == 4)
             .map(k => parseFloat(k)).filter(k => !!k);
 
@@ -54,7 +53,7 @@ export class Budgeteer {
             for (let rowIndex = 1; rowIndex < numRows; rowIndex++) {
                 const accountId = rowIndexToAccountId[rowIndex];
                 const cell = sheet.getRange(rowIndex + 1, columns[year.toString()] + 1).getCell(1, 1);
-                //console.log(accountId, cell.getValue());
+                //console.log(accountId, cell.getValue(), accountId ? byAccount[accountId] : "");
                 cell.setValue(accountId ? (byAccount[accountId] || "") : "");
             }
         });

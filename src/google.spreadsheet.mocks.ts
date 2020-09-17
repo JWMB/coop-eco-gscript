@@ -48,6 +48,9 @@ export class MockSheetRange implements ISheetRange {
         // this.rows = rows;
         this.sheet = sheet;
     }
+    toString() {
+        return `c${this.view.x},r${this.view.y},#c${this.view.width},#r${this.view.height},`;
+    }
     private view = { x: 0, y: 0, width: Number.MAX_VALUE, height: Number.MAX_VALUE }; //{ x: number, y: number, width: number, height: number}
     offset(rowOffset: number, columnOffset: number, numRows?: number, numColumns?: number): ISheetRange {
         const result = new MockSheetRange(this.sheet);
@@ -59,8 +62,8 @@ export class MockSheetRange implements ISheetRange {
     }
 
     getValues(): any[][] {
-        const rows = this.sheet.rows.slice(this.view.y, this.view.height == undefined ? undefined : this.view.y + this.view.height);
-        return rows.map(r => r.slice(this.view.x, this.view.width == undefined ? undefined : this.view.x + this.view.width));
+        const rows = this.sheet.rows.slice(this.view.y, (this.view.height == undefined || this.view.height == Number.MAX_VALUE)? undefined : this.view.y + this.view.height);
+        return rows.map(r => r.slice(this.view.x, (this.view.width == undefined || this.view.width == Number.MAX_VALUE) ? undefined : this.view.x + this.view.width));
     }
     getCell(rowIndexBase1: number, colIndexBase1: number): ICell {
         return new MockCell(this.sheet, this.view.y + colIndexBase1 - 1, this.view.x + rowIndexBase1 - 1);

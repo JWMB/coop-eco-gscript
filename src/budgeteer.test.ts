@@ -74,7 +74,7 @@ function tsvToRows(data: string) {
     return data.split('\n').map(r => r.split('\t').map(c => toNumericOrString(c)));
 }
 const someonesBudget = `Konto	2019	2020	Budget 2020	Rel 2020	Namn	Ansvar	Kommentar	Kommentar 2
-46100					El Taxebundna kostnader	Asfalt	Ej av SBC "godkänt" konto	
+47600					El Taxebundna kostnader	Asfalt	Ej av SBC "godkänt" konto	
 65500					Konsultarvode Övriga externa tjänster	Asfalt	Ej av SBC "godkänt" konto	
 								
 ---BUDGET---	Ändra ej denna och nästa rad, används för automatisk inläsning							
@@ -84,8 +84,8 @@ Konto	Datum	Summa	Mottagare	Kommentar
 45613	2020-06-01	0		Inte än: 220000 (från underhållsplan)				`;
 
 const transactionData = `Date	Missing	Amount	Supplier	AccountId	AccountName	Comments	InvoiceId	ReceiptId	CurrencyDate	TransactionText	TransactionRef
-2020-07-28 0:00:00		7,937.00							2020-07-29 0:00:00	56901309 00105	6091 BGINB
-2020-07-28 0:00:00		24,783.00							2020-07-29 0:00:00	56901309 00104	6091 BGINB
+2020-07-28 0:00:00		7,937.00	Sup1	65500					2020-07-29 0:00:00	56901309 00105	6091 BGINB
+2020-07-28 0:00:00		24,783.00	Sup2	65500					2020-07-29 0:00:00	56901309 00104	6091 BGINB
 2020-07-28 0:00:00		-125.00	Com Hem AB	47600	Kabel-TV Övriga driftkostnader		6395366	L6297   5589     1	2020-07-28 0:00:00	LB UTTAG	6091 LB32
 2020-07-27 0:00:00		30,855.00							2020-07-28 0:00:00	56901309 00103	6091 BGINB`; 
 
