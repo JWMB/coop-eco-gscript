@@ -61,13 +61,12 @@ describe('Budget', () => {
         //     data => data.filter(r => r[0].toString().indexOf("41") == 0), 
         //     data => data.filter(r => r[1].toString() == "2242")]);
         // expect(filtered.length).toBe(1);
-
-        // Budgeteer.collectFromResponsibilitySheets();
+        const budgetFolderName = "Budget2021";
 
         Budgeteer.fillResponsibilitySpreadsheets(
             SpreadsheetAppUtils.openByName("Konton"), 
             SpreadsheetAppUtils.openByName("Transaktioner"));
-        const files = DriveUtils.getFilesInFolderName("Budget2021");
+        const files = DriveUtils.getFilesInFolderName(budgetFolderName);
         const fileNames = files.map(f => f.getName());
         expect(files.map(f => f.getName())).toStrictEqual(
             ["Budget Utemiljö", "Budget Förvaltarkontakt", "Budget Ordförande", "Budget Ventilation och värme", "Budget Reparationer"]);
@@ -79,6 +78,10 @@ describe('Budget', () => {
         const row2 = budgetUte.getSheets()[1].getDataRange().getValues()[1];
         expect(row2.slice(0,4)).toStrictEqual(["2020-07-20 0:00:00", "",  -17796, "TrädgårdsHuset"]);
         //console.log(bus.getDataRange().getValues());
+
+        
+        const data = Budgeteer.collectFromResponsibilitySheets(budgetFolderName);
+        //console.log(data);
     })
 });
 

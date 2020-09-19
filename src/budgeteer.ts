@@ -80,8 +80,8 @@ export class Budgeteer {
     //     return result;
     // }
 
-    runCollect() {
-        const budgetRows = Budgeteer.collectFromResponsibilitySheets();
+    runCollect(budgetFolder: string) {
+        const budgetRows = Budgeteer.collectFromResponsibilitySheets(budgetFolder);
 
         const filtered = Budgeteer.filterCollectedBudgetRows(budgetRows);
 
@@ -133,9 +133,9 @@ export class Budgeteer {
         SheetUtils.fillSheet(collectedTargetSheet, budgetRows.concat(summaryRows), 0, 0);
     }
 
-    static collectFromResponsibilitySheets() {
+    static collectFromResponsibilitySheets(budgetFolder: string) {
         // Collect rows from each responsibility spreadsheet and enter into target sheet
-        const folder = DriveUtils.getSingleFolder("Budget2020");
+        const folder = DriveUtils.getSingleFolder(budgetFolder);
         const filePrefix = "Budget ";
         const files = DriveUtils.getFilesInFolder(folder, file => file.getName().indexOf(filePrefix) == 0);
         const textForUserEditStart = "---BUDGET---";
@@ -146,13 +146,17 @@ export class Budgeteer {
             const foundUserEditRowIndex = sheet.getDataRange().getValues().reduce((res, row, index) =>
                 res >= 0 ? res : (row[0] === textForUserEditStart ? index : -1)
                 , -1);
-            const responsability = file.getName().substr(filePrefix.length);
+            const responsibility = file.getName().substr(filePrefix.length);
             const rows = sheet.getDataRange().getValues()
                 .slice(foundUserEditRowIndex + 1 + (allRows.length == 0 ? 0 : 1)); //Include header first time
             rows.forEach(r => {
-                if (!!r[2] && !isNaN(parseFloat(r[2])) && parseFloat(r[2]) > 0) r[2] = -parseFloat(r[2]);
-                r[5] = responsability;
+                // Always treat them as costs regardless of sign
+                if (!!r[2] && !isNaN(parseFloat(r[2])) && parseFloat(r[2]) > 0) {
+                    r[2] = -parseFloat(r[2]);
+                }
+                r[5] = responsibility;
             });
+            console.log(rows);
             allRows = allRows.concat(rows);
         });
 
