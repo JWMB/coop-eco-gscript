@@ -4,14 +4,9 @@ import { Aggregation, AggregationDefinition } from './aggregation'
 import { Timeseries } from './timeseries'
 
 export class Budgeteer {
-    private transactionSpreadsheet: ISpreadsheet;
     // private getTransactionsSpreadsheet(): ISpreadsheet {
     //     return SpreadsheetApp.openById(this.transactionSpreadsheetId); //"1qSva_jUZsNZ_99XT_xuXn04ViQI_AnVFUThJQaDruSU");
     // }
-
-    constructor(transactionSpreadsheet: ISpreadsheet) {
-        this.transactionSpreadsheet = transactionSpreadsheet;
-    }
 
     static fillWithTotalAmounts(sheet: ISheet, transactionSheetSrc: ISheet) {
         //Get data from Transactions spreadsheet:
@@ -80,7 +75,7 @@ export class Budgeteer {
     //     return result;
     // }
 
-    runCollect(budgetFolder: string) {
+    static runCollect(budgetFolder: string) {
         const budgetRows = Budgeteer.collectFromResponsibilitySheets(budgetFolder);
 
         const filtered = Budgeteer.filterCollectedBudgetRows(budgetRows);
@@ -126,7 +121,7 @@ export class Budgeteer {
             }
         });
 
-        let summaryRows = this.summarizeBudgetRows(filtered);
+        let summaryRows = Budgeteer.summarizeBudgetRows(filtered);
         const tmpStrangeTypeError = <(string | number)[][]>[[], [], ["Account series summaries"]];
         summaryRows = tmpStrangeTypeError.concat(summaryRows);
         const collectedTargetSheet = SheetUtils.getOrCreateSheet("Collected", true, SpreadsheetAppUtils.MySpreadsheetApp.getActiveSpreadsheet());
@@ -168,7 +163,7 @@ export class Budgeteer {
         return budgetRows.filter(row => !isNaN(parseFloat(row[0])) && !isNaN(parseFloat(row[2])));
     }
 
-    summarizeBudgetRows(budgetRows: any[][]) {
+    static summarizeBudgetRows(budgetRows: any[][]) {
         const summaries: KeyValueMap<number[]> = {};
         budgetRows.forEach(row => {
             const account = parseFloat(row[0]);
@@ -193,15 +188,15 @@ export class Budgeteer {
         return summaryRows;
     }
 
-    fillBudgetRelative(sheet: ISheet, columnActualName: string, columnBudgetName: string, columnRelativeName: string) {
+    static fillBudgetRelative(kontonBudgetSheet: ISheet, columnActualName: string, columnBudgetName: string, columnRelativeName: string) {
         //actual expenditure relative to budget as percentage (mark as red or green)
-        const columns = SheetUtils.getHeaderColumnsAsObject(sheet);
+        const columns = SheetUtils.getHeaderColumnsAsObject(kontonBudgetSheet);
         const budgetColumnIndex = columns[columnBudgetName];
         const actualColumnIndex = columns[columnActualName];
         const relativeColumnIndex = columns[columnRelativeName];
         if (relativeColumnIndex < 0 || actualColumnIndex < 0 || budgetColumnIndex < 0) return;
 
-        const data = sheet.getDataRange().getValues();
+        const data = kontonBudgetSheet.getDataRange().getValues();
         for (let rIndex = 1; rIndex < data.length; rIndex++) {
             const row = data[rIndex];
             let budget = parseFloat(row[budgetColumnIndex]);
@@ -213,25 +208,25 @@ export class Budgeteer {
 
             const rel = budget == 0 ? 9 : actual / budget;
 
-            const cell = sheet.getRange(rIndex + 1, relativeColumnIndex + 1).getCell(1, 1);
+            const cell = kontonBudgetSheet.getRange(rIndex + 1, relativeColumnIndex + 1).getCell(1, 1);
             cell.setValue(budget == 0 ? 'MAX' : Math.round(100 * rel));
             cell.setFontColor(rel > 1 ? '#aa0000' : "#00aa00");
         }
     }
 
-    fillBudgetValues(sheet: ISheet, columnBudgetName: string, budgetDocumentName: string) {
-        const columns = SheetUtils.getHeaderColumnsAsObject(sheet);
+    static fillBudgetValues(kontonBudgetSheet: ISheet, columnBudgetName: string, exportedResultDocumentName: string) {
+        const columns = SheetUtils.getHeaderColumnsAsObject(kontonBudgetSheet);
         const budgetColumnIndex = columns[columnBudgetName];
         if (budgetColumnIndex >= 0) {
-            const budgetByAccountId = Budgeteer.getBudgetValues(budgetDocumentName);
-            const data = sheet.getDataRange().getValues();
+            const budgetByAccountId = Budgeteer.getBudgetValues(exportedResultDocumentName);
+            const data = kontonBudgetSheet.getDataRange().getValues();
             for (let rIndex = 0; rIndex < data.length; rIndex++) {
                 const row = data[rIndex];
                 const accountId = parseFloat(row[columns.Konto]);
                 if (accountId > 0) {
                     if (!!budgetByAccountId[accountId]) {
                         //Logger.log('' + accountId + ' ' + budgetByAccountId[accountId] + ' ' + row[columns['2019']]);
-                        const cell = sheet.getRange(rIndex + 1, budgetColumnIndex + 1).getCell(1, 1);
+                        const cell = kontonBudgetSheet.getRange(rIndex + 1, budgetColumnIndex + 1).getCell(1, 1);
                         cell.setValue(budgetByAccountId[accountId]);
                     }
                 }
@@ -376,11 +371,11 @@ export class Budgeteer {
         }
     }
 
-    static getBudgetValues(exportedFileName: string) {
+    static getBudgetValues(exportedResultatFileName: string) {
         //Get from SBC export
-        const file = DriveUtils.getFileInFolder(exportedFileName, "Budget");
+        const file = DriveUtils.getFileInFolder(exportedResultatFileName, "Budget");
         if (!file) {
-            throw new Error("FileNotFound: " + exportedFileName);
+            throw new Error("FileNotFound: " + exportedResultatFileName);
         }
         const spreadsheet = SpreadsheetAppUtils.MySpreadsheetApp.open(file);
         const sheet = spreadsheet.getSheets()[0];
@@ -425,67 +420,3 @@ export class Budgeteer {
         return byResponsibility;
     }
 }
-
-// function getOrCreateSpreadsheet(fileName, folderName) {
-//     var folder = iterateToFirst(DriveApp.getFoldersByName(folderName));
-//     if (!folder) {
-//         Logger.log("No folder: " + folderName);
-//         return;
-//     }
-//     var folderId = folder.getId();
-
-//     file = getFileInFolderId(fileName, folderId);
-
-//     if (file) {
-//         return file;
-//     } else {
-//         Logger.log("Creating file " + fileName);
-//         var file = SpreadsheetApp.create(fileName);
-//         var copyFile = DriveApp.getFileById(file.getId());
-//         folder.addFile(copyFile);
-//         DriveApp.getRootFolder().removeFile(copyFile);
-
-//         file = getFileInFolderId(fileName, folderId);
-//         if (!file) {
-//             throw "Failed to copy file to " + folderName;
-//         }
-//         return file;
-//     }
-// }
-
-
-// function getHeaderColumnsAsObject(sheet) {
-//     var headerRow = sheet.getDataRange().offset(0, 0, 1).getValues()[0];
-//     return toObject(headerRow, function (v, i) { return [v, i]; });
-// }
-
-// function toObject(list, funcKeyAndValue) {
-//     var result = {};
-//     for (var i = 0; i < list.length; i++) {
-//         var kv = funcKeyAndValue(list[i], i, list);
-//         result[kv[0]] = kv[1];
-//     }
-//     return result;
-// }
-
-// function getOrCreateSheet(spreadsheet, name, clearIfExists) {
-//     var targetSheet = spreadsheet.getSheetByName(name);
-//     if (!targetSheet) {
-//         targetSheet = spreadsheet.insertSheet();
-//         targetSheet.setName(name);
-//     } else if (clearIfExists) {
-//         targetSheet.getDataRange().clearContent();
-//     }
-//     return targetSheet;
-// }
-
-// function fillSheet(sheet, data, offsetRow, offsetColumn) {
-//     offsetRow = offsetRow || 0;
-//     offsetColumn = offsetColumn || 0;
-//     data.forEach(function (row, ir) {
-//         row.forEach(function (val, ic) {
-//             var cell = sheet.getRange(ir + 1 + offsetRow, ic + 1 + offsetColumn).getCell(1, 1);
-//             cell.setValue(val);
-//         });
-//     });
-// }
