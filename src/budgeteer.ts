@@ -1,13 +1,9 @@
-import { ISheet, Charts, DriveUtils, SpreadsheetApp, ISpreadsheet, SheetUtils, Logger, ISheetRange, ISpreadsheetApp, SpreadsheetAppUtils } from './utils-google'
+import { ISheet, Charts, DriveUtils, SpreadsheetApp, ISpreadsheet, SheetUtils, Logger, ISheetRange, SpreadsheetAppUtils } from './utils-google'
 import { KeyValueMap, toObject } from './utils'
 import { Aggregation, AggregationDefinition } from './aggregation'
 import { Timeseries } from './timeseries'
 
 export class Budgeteer {
-    // private getTransactionsSpreadsheet(): ISpreadsheet {
-    //     return SpreadsheetApp.openById(this.transactionSpreadsheetId); //"1qSva_jUZsNZ_99XT_xuXn04ViQI_AnVFUThJQaDruSU");
-    // }
-
     static fillWithTotalAmounts(sheet: ISheet, transactionSheetSrc: ISheet) {
         //Get data from Transactions spreadsheet:
         // const ss = this.transactionSpreadsheet;
@@ -44,7 +40,6 @@ export class Budgeteer {
             }
 
             // const yearColIndex = columns[year.toString()];
-
             for (let rowIndex = 1; rowIndex < numRows; rowIndex++) {
                 const accountId = rowIndexToAccountId[rowIndex];
                 const cell = sheet.getRange(rowIndex + 1, columns[year.toString()] + 1).getCell(1, 1);
@@ -103,7 +98,7 @@ export class Budgeteer {
             throw "Missing account translations: " + missingAccounts.join(", ");
         }
 
-        const colForBudget = orgCols["Budget 2020"];
+        const colForBudget = orgCols["Budget 2020"]; //TODO: find automatically
         Object.keys(aggregated).forEach(accountId => {
             const rIndex = accountIdToRowIndex[accountId];
             const cell = orgSheet.getRange(rIndex + 1, colForBudget + 1).getCell(1, 1);
@@ -214,11 +209,11 @@ export class Budgeteer {
         }
     }
 
-    static fillBudgetValues(kontonBudgetSheet: ISheet, columnBudgetName: string, exportedResultDocumentName: string) {
+    static fillBudgetValues(kontonBudgetSheet: ISheet, columnBudgetName: string, exportedResultatRakning: ISheet) {
         const columns = SheetUtils.getHeaderColumnsAsObject(kontonBudgetSheet);
         const budgetColumnIndex = columns[columnBudgetName];
         if (budgetColumnIndex >= 0) {
-            const budgetByAccountId = Budgeteer.getBudgetValues(exportedResultDocumentName);
+            const budgetByAccountId = Budgeteer.getBudgetValues(exportedResultatRakning);
             const data = kontonBudgetSheet.getDataRange().getValues();
             for (let rIndex = 0; rIndex < data.length; rIndex++) {
                 const row = data[rIndex];
@@ -371,15 +366,15 @@ export class Budgeteer {
         }
     }
 
-    static getBudgetValues(exportedResultatFileName: string) {
+    static getBudgetValues(exportedResultatRakning: ISheet) {
         //Get from SBC export
-        const file = DriveUtils.getFileInFolder(exportedResultatFileName, "Budget");
-        if (!file) {
-            throw new Error("FileNotFound: " + exportedResultatFileName);
-        }
-        const spreadsheet = SpreadsheetAppUtils.MySpreadsheetApp.open(file);
-        const sheet = spreadsheet.getSheets()[0];
-        let data = sheet.getDataRange().getValues();
+        // const file = DriveUtils.getFileInFolder(exportedResultatFileName, "Budget");
+        // if (!file) {
+        //     throw new Error("FileNotFound: " + exportedResultatFileName);
+        // }
+        // const spreadsheet = SpreadsheetAppUtils.MySpreadsheetApp.open(file);
+        // const sheet = spreadsheet.getSheets()[0];
+        let data = exportedResultatRakning.getDataRange().getValues();
         const headerRowIndex = 2;
         data = data.slice(headerRowIndex);
         const columns = toObject(data[0], (val, index) => [val, index]);
@@ -389,7 +384,7 @@ export class Budgeteer {
         const rxStartWithAccount = /^\d{5}/;
         data = data.filter(row => rxStartWithAccount.exec(row[0]) != null);
         const accountToBudget = toObject(data, row => {
-            const val = parseFloat(row[columns['Budget ack']]);
+            const val = parseFloat(row[columns['Budget ack']]); //Utfall ack
             return [(rxStartWithAccount.exec(row[0]) || "").toString(), isNaN(val) ? 0 : val];
         });
         return accountToBudget;

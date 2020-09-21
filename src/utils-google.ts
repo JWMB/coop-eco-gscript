@@ -111,6 +111,20 @@ export class SpreadsheetAppUtils
   // static open(file: IFile): ISpreadsheet {
   //   return SpreadsheetAppUtils.MySpreadsheetApp.open(file);
   // }
+  static openSheet(filename: string, foldername: (string | null) = null, sheetNameOrIndex: (string | number) = 0): ISheet {
+    let file: (IFile | null);
+    if (foldername === null)
+      file = DriveUtils.getSingleFile(filename);
+    else
+      file = DriveUtils.getFileInFolder(filename, foldername);
+    if (file == null) throw new Error(`File not found ${filename} in ${foldername}`);
+
+    const spreadsheet = SpreadsheetAppUtils.MySpreadsheetApp.open(file);
+    const sheet = typeof sheetNameOrIndex === "string" ? spreadsheet.getSheetByName(sheetNameOrIndex) : spreadsheet.getSheets()[sheetNameOrIndex];
+    if (!sheet) throw new Error(`Sheet not available: ${sheetNameOrIndex}`);
+    return sheet;
+  }
+
   static openByName(name: string): ISpreadsheet {
     const iter = DriveUtils.MyDriveApp.getFilesByName(name);
     if (iter.hasNext()) {

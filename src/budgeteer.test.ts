@@ -36,17 +36,17 @@ describe('Budget', () => {
         const accountId2Row = Budgeteer.getRowIndexToAccountId(xsheet, 0);
         expect(accountId2Row).toStrictEqual({'1': 46100, '2': 65500 });
 
-        Budgeteer.fillWithTotalAmounts(xsheet, SpreadsheetAppUtils.openByName("Transaktioner").getSheets()[0]);
+        Budgeteer.fillWithTotalAmounts(xsheet, SpreadsheetAppUtils.openSheet("Transaktioner"));
         expect(xsheet.rows[1][2]).toBe(508);
         expect(xsheet.rows[2][2]).toBe(-17631);
         
 
-        const budgetVals = Budgeteer.getBudgetValues("190111 Resultaträkning");
+        const budgetVals = Budgeteer.getBudgetValues(SpreadsheetAppUtils.openSheet("190111 Resultaträkning"));
         expect(budgetVals["30110"]).toBe(7593000);
 
         
-        const kontoSheet = SpreadsheetAppUtils.openByName("Konton"); //MySpreadsheetApp.open(DriveUtils.getSingleFile("Konton"));
-        const kontoData = kontoSheet.getSheets()[0].getDataRange().getValues();
+        const kontoSheet = SpreadsheetAppUtils.openSheet("Konton"); //MySpreadsheetApp.open(DriveUtils.getSingleFile("Konton"));
+        const kontoData = kontoSheet.getDataRange().getValues();
         const rowsPerResp = Budgeteer.getRowsPerResponsibility(kontoData, kontoData[0].indexOf("Ansvar"));
         const numRowsPerResp = Object.keys(rowsPerResp).map(k => [k, rowsPerResp[k].length]);
         expect(numRowsPerResp).toStrictEqual([
