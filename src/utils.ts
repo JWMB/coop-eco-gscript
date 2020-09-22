@@ -61,12 +61,24 @@ export interface KeyValueMap<T> {
 
 export function toObject(
   list: any[],
-  funcKeyAndValue: (key: any, index: number, arr: any[]) => [string, any]
+  funcKeyAndValue?: (value: any, index: number, arr: any[]) => [string, any]
 ): KeyValueMap<any> {
   const result = <KeyValueMap<any>>{};
+  if (!funcKeyAndValue) {
+    funcKeyAndValue = (k) => [k[0], k[1]];
+  }
   for (let i = 0; i < list.length; i++) {
     const kv = funcKeyAndValue(list[i], i, list);
     result[kv[0]] = kv[1];
   }
   return result;
 }
+
+export function parseFloatOrDefault(value: any, defaultValue: number = 0): number {
+  const result = parseFloat(value);
+  return isNaN(result) ? defaultValue : result;
+}
+export function parseFloatOrAny(value: any, defaultValue: any): any {
+  const result = parseFloat(value);
+  return isNaN(result) ? defaultValue : result;
+} 

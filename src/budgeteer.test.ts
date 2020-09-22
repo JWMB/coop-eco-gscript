@@ -1,37 +1,62 @@
-import { Budgeteer } from './budgeteer'
+import { Budgeteer, ResultatRakning } from './budgeteer'
 import { DriveUtils, SpreadsheetAppUtils } from './utils-google';
 import { KeyValueMap } from './utils'
 import { MockDriveApp, MockFileSystemObject, MockFolder } from './google.drive.mocks';
 import { MockSheet, MockSpreadsheet, MockSpreadsheetApp } from './google.spreadsheet.mocks';
 
-describe('Budget', () => {
-    it('works', () => {
-        const rootFolder = MockFolder.createTree({ 
-            files: { "tjohoox": null },
-            folders: { 
-                "Budget": {
-                    files: {
-                        "190111 Resultaträkning": { content: new MockSpreadsheet([ 
-                            new MockSheet("0", tsvToRows(rrExport)) ]) },
-                        "Transaktioner": { content: new MockSpreadsheet([
-                            new MockSheet("0", tsvToRows(transactionData)) ]) },
-                        "Konton": { content: new MockSpreadsheet([
-                            new MockSheet("0", tsvToRows(konton))]) }
-                    },
-                    folders: {
-                        "Budget2021": {
-                            files: {
-                                "Budget Utemiljö": { content: new MockSpreadsheet([ 
-                                    new MockSheet("0", tsvToRows(someonesBudget)) ]) },
-                            }
+function setupFileStructure() {
+    const rootFolder = MockFolder.createTree({ 
+        files: { "tjohoox": null },
+        folders: { 
+            "Budget": {
+                files: {
+                    "190111 Resultaträkning": { content: new MockSpreadsheet([ 
+                        new MockSheet("0", tsvToRows(rrExport)) ]) },
+                    "Transaktioner": { content: new MockSpreadsheet([
+                        new MockSheet("0", tsvToRows(transactionData)) ]) },
+                    "Konton": { content: new MockSpreadsheet([
+                        new MockSheet("0", tsvToRows(konton))]) }
+                },
+                folders: {
+                    "Budget2021": {
+                        files: {
+                            "Budget Utemiljö": { content: new MockSpreadsheet([ 
+                                new MockSheet("0", tsvToRows(someonesBudget)) ]) },
                         }
                     }
                 }
             }
-        });
-        DriveUtils.MyDriveApp = new MockDriveApp(rootFolder);
-        SpreadsheetAppUtils.MySpreadsheetApp = new MockSpreadsheetApp(DriveUtils.MyDriveApp);
+        }
+    });
+    DriveUtils.MyDriveApp = new MockDriveApp(rootFolder);
+    SpreadsheetAppUtils.MySpreadsheetApp = new MockSpreadsheetApp(DriveUtils.MyDriveApp);
+}
 
+beforeEach(() => {
+    setupFileStructure();
+});
+
+describe('Budget', () => {
+    it('resultatrakning_rows', () => {
+        const budgetVals = ResultatRakning.getRowsByAccountId(SpreadsheetAppUtils.openSheet("190111 Resultaträkning"));
+        expect(budgetVals["30110"].budget).toBe(7593000);
+        const row41100 = budgetVals["41100"];
+        expect(row41100.previous).toBe(9994);
+        expect(row41100.current).toBe(9992);
+        expect(row41100.budget).toBe(9993);
+    });
+
+    it('resultatrakning_to_konton', () => {
+        const kontoSheet = SpreadsheetAppUtils.openSheet("Konton");
+        Budgeteer.fillFromResultatRakning(kontoSheet, SpreadsheetAppUtils.openSheet("190111 Resultaträkning"), 2020);
+        const kontoData = kontoSheet.getDataRange().getValues();
+        const kontoRow41100 = kontoData.filter(r => r[0].toString().indexOf("41100") == 0)[0];
+        expect(kontoRow41100[2]).toBe(9994);
+        expect(kontoRow41100[3]).toBe(9992);
+        expect(kontoRow41100[4]).toBe(9993);
+    });
+
+    it('fillResponsibilityTotals', () => {
         const xsheet = new MockSheet("0", tsvToRows(someonesBudget));
         const accountId2Row = Budgeteer.getRowIndexToAccountId(xsheet, 0);
         expect(accountId2Row).toStrictEqual({'1': 46100, '2': 65500 });
@@ -39,14 +64,10 @@ describe('Budget', () => {
         Budgeteer.fillWithTotalAmounts(xsheet, SpreadsheetAppUtils.openSheet("Transaktioner"));
         expect(xsheet.rows[1][2]).toBe(508);
         expect(xsheet.rows[2][2]).toBe(-17631);
-        
+    });
 
-        const budgetVals = Budgeteer.getBudgetValues(SpreadsheetAppUtils.openSheet("190111 Resultaträkning"));
-        expect(budgetVals["30110"]).toBe(7593000);
-
-        
-        const kontoSheet = SpreadsheetAppUtils.openSheet("Konton"); //MySpreadsheetApp.open(DriveUtils.getSingleFile("Konton"));
-        const kontoData = kontoSheet.getDataRange().getValues();
+    it('getRowsPerResponsibility', () => {
+        const kontoData = SpreadsheetAppUtils.openSheet("Konton").getDataRange().getValues();
         const rowsPerResp = Budgeteer.getRowsPerResponsibility(kontoData, kontoData[0].indexOf("Ansvar"));
         const numRowsPerResp = Object.keys(rowsPerResp).map(k => [k, rowsPerResp[k].length]);
         expect(numRowsPerResp).toStrictEqual([
@@ -54,20 +75,18 @@ describe('Budget', () => {
             ["Utemiljö", 7],
             ["Ordförande", 1],
             ["Ventilation och värme", 2],
-            ["Reparationer", 3],
+            ["Reparationer", 1],
         ]);
+    });
 
-        // const filtered = Budgeteer.applyFilters(rows, [
-        //     data => data.filter(r => r[0].toString().indexOf("41") == 0), 
-        //     data => data.filter(r => r[1].toString() == "2242")]);
-        // expect(filtered.length).toBe(1);
+    it('responsibilities', () => {
         const budgetFolderName = "Budget2021";
 
         Budgeteer.fillResponsibilitySpreadsheets(
             SpreadsheetAppUtils.openByName("Konton"), 
             SpreadsheetAppUtils.openByName("Transaktioner"));
         const files = DriveUtils.getFilesInFolderName(budgetFolderName);
-        const fileNames = files.map(f => f.getName());
+        //const fileNames = files.map(f => f.getName());
         expect(files.map(f => f.getName())).toStrictEqual(
             ["Budget Utemiljö", "Budget Förvaltarkontakt", "Budget Ordförande", "Budget Ventilation och värme", "Budget Reparationer"]);
         
@@ -77,9 +96,7 @@ describe('Budget', () => {
         const budgetUte = SpreadsheetAppUtils.openByName("Budget Utemiljö");
         const row2 = budgetUte.getSheets()[1].getDataRange().getValues()[1];
         expect(row2.slice(0,4)).toStrictEqual(["2020-07-20 0:00:00", "",  -17796, "TrädgårdsHuset"]);
-        //console.log(bus.getDataRange().getValues());
 
-        
         const data = Budgeteer.collectFromResponsibilitySheets(budgetFolderName);
         //console.log(data);
     })
@@ -158,9 +175,37 @@ Summa Årsavgifter och hyror		710,167	6,370,343	8,522,000	8,357,433
 39999 Övriga intäkter			4,999		508		
 Summa Övriga rörelseintäkter		1,250	20,160	15,000	15,778		
 Summa Rörelsens intäkter		711,417	6,390,503	8,537,000	8,373,211		
-41110 Fastighetsskötsel beställning			-7,063				Upp till 5000 kr, alla övriga ”små” jobb under entreprenad. T ex byte av lampor.`;
+41100 Fastighetsskötsel beställning		9991	9992	9993	9994   
+41110 Fastighetsskötsel beställning			-7,063				`;
 
-const konton = `Konto	2018	2019	Budget 2019	Rel 2019	Budget 2020	Namn	Ansvar
+const konton = `Konto	2018	2019	2020	Budget 2020	Rel 2020	Budget 2021	Namn	Ansvar	Kommentar
+11820							Pågående om- och tillbyggnad		
+12110							N/A		
+15210							N/A		
+16889							N/A		
+19710							N/A		
+23501	-1500000				MAX		N/A - Handelsbanken		
+28990							N/A - Inre fond?		
+37400				0			Öresutjämning		
+41100		4781					Fastighetsskötsel entreprenad Fastighetsskötsel och städning		
+41110		10046		0	MAX	-60000	Fastighetsskötsel beställning Fastighetsskötsel och städning	Förvaltarkontakt	Upp till 5000 kr, alla övriga ”små” jobb under entreprenad. T ex byte av lampor.
+41150	17375			0		0	Fastighetsskötsel gård entrep Fastighetsskötsel och städning	Utemiljö	
+41160	-12000	3346		-10000	-33	-19500	Fastighetsskötsel gård bestäl Fastighetsskötsel och städning	Utemiljö	Alla övriga trädgårdstjänster – trädbeskärning, fällning, plantering, stubbfräsning, tömning av kompost.
+41170	-210496	-174576		-189000	92	-200000	Snöröjning/sandning Fastighetsskötsel och städning	Utemiljö	Takskottning, nedtagning av istappar, upptagning sand, markuppvärmning, saltning.
+41210		-6520			MAX	-6520	Städning enligt beställning Fastighetsskötsel och städning	Ordförande	
+41300				-2000	0	-2500	Sotning Fastighetsskötsel och städning	Ventilation och värme	Rökkanaler, kaminer, provtryckning, brandskyddskontroll
+41430							Myndighetstillsyn		
+41600	-2427			-5000	0	-45000	Gemensamma utrymmen Fastighetsskötsel och städning	Utemiljö	Större inköp – skyltar, anslagstavlor, cykelställ
+41650	-22375	15875		-16000	-99	-38000	Sophantering Fastighetsskötsel och städning	Utemiljö	Källsorteringsavtal, container, tvättning kärl, sopsug, tunnor, källsorteringsavtal
+41710	2242			-3000	0	-3000	Gård Fastighetsskötsel och städning	Utemiljö	Alla inköp till gården/entré. T ex julgran, blommor, krattor, spadar, gungor, rutschkana, flaggstång, byte av sand i sandlåda (lekplats)
+41800	-23281	-24111		-15000	161	-25000	Serviceavtal Fastighetsskötsel och städning	Ventilation och värme	Om period anges månad, kvartal – energitjänster, jouravtal, hissavtal – alla serviceavtal
+41910				-2000	0	-2000	Förbrukningsmateriel	Förvaltarkontakt	Glödlampor, städmaterial, spikar, skruvar, verktyg, namnremsor
+41914							Störningsjour och larm		
+41915							Brandskydd		
+41920	-9573	-11119		-5000	222	-10000	Fordon Fastighetsskötsel och städning	Utemiljö	Reparation t ex gräsklippare, traktorer, snöslunga, bränsle, trängselskatt
+43000	56125	-81150		0	MAX	-40000	Fastighet förbättringar Reparationer	Reparationer	Fuktmätning, besiktning av fastigheten`;
+
+const kontonOld = `Konto	2018	2019	Budget 2019	Rel 2019	Budget 2020	Namn	Ansvar
 11820						Pågående om- och tillbyggnad	
 12110						N/A	
 15210						N/A	

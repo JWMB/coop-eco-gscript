@@ -1,5 +1,5 @@
 import { ISheet, Charts, DriveUtils, SpreadsheetApp, ISpreadsheet, SheetUtils, Logger, ISheetRange, SpreadsheetAppUtils } from './utils-google'
-import { KeyValueMap, toObject } from './utils'
+import { KeyValueMap, parseFloatOrAny, parseFloatOrDefault, toObject } from './utils'
 import { Aggregation, AggregationDefinition } from './aggregation'
 import { Timeseries } from './timeseries'
 
@@ -146,7 +146,7 @@ export class Budgeteer {
                 }
                 r[5] = responsibility;
             });
-            console.log(rows);
+            // console.log(rows);
             allRows = allRows.concat(rows);
         });
 
@@ -209,21 +209,28 @@ export class Budgeteer {
         }
     }
 
-    static fillBudgetValues(kontonBudgetSheet: ISheet, columnBudgetName: string, exportedResultatRakning: ISheet) {
+    static fillFromResultatRakning(kontonBudgetSheet: ISheet, exportedResultatRakning: ISheet, budgetYear: number) {
         const columns = SheetUtils.getHeaderColumnsAsObject(kontonBudgetSheet);
-        const budgetColumnIndex = columns[columnBudgetName];
-        if (budgetColumnIndex >= 0) {
-            const budgetByAccountId = Budgeteer.getBudgetValues(exportedResultatRakning);
-            const data = kontonBudgetSheet.getDataRange().getValues();
-            for (let rIndex = 0; rIndex < data.length; rIndex++) {
-                const row = data[rIndex];
-                const accountId = parseFloat(row[columns.Konto]);
-                if (accountId > 0) {
-                    if (!!budgetByAccountId[accountId]) {
-                        //Logger.log('' + accountId + ' ' + budgetByAccountId[accountId] + ' ' + row[columns['2019']]);
-                        const cell = kontonBudgetSheet.getRange(rIndex + 1, budgetColumnIndex + 1).getCell(1, 1);
-                        cell.setValue(budgetByAccountId[accountId]);
-                    }
+        //2018	2019	2020	Budget 2020	Rel 2020
+        //const year = new Date().getFullYear();
+        const columnBudgetName = `Budget ${budgetYear}`;
+        const rr2kontonCols: any = { budget: columns[columnBudgetName], current: columns[`${budgetYear}`], previous: columns[`${budgetYear - 1}`]};
+        // remove if missing columns
+        Object.keys(rr2kontonCols).forEach(k => { if (rr2kontonCols[k] === undefined) delete rr2kontonCols[k]; })
+        const rrByAccountId = ResultatRakning.getRowsByAccountId(exportedResultatRakning);
+        const data = kontonBudgetSheet.getDataRange().getValues();
+        for (let rIndex = 0; rIndex < data.length; rIndex++) {
+            const row = data[rIndex];
+            const accountId = parseFloat(row[columns.Konto]);
+            if (accountId > 0) {
+                const fromRR = rrByAccountId[accountId];
+                if (!!rrByAccountId[accountId]) {
+                    Object.keys(rr2kontonCols).forEach(k => {
+                        const val = (<any>rrByAccountId[accountId])[k];
+                        const cell = kontonBudgetSheet.getRange(rIndex + 1, rr2kontonCols[k] + 1).getCell(1, 1);
+                        cell.setValue(val == null ? "" : val); //Overwrite with empty string when null
+                    });
+                    //Logger.log('' + accountId + ' ' + budgetByAccountId[accountId] + ' ' + row[columns['2019']]);
                 }
             }
         }
@@ -366,30 +373,6 @@ export class Budgeteer {
         }
     }
 
-    static getBudgetValues(exportedResultatRakning: ISheet) {
-        //Get from SBC export
-        // const file = DriveUtils.getFileInFolder(exportedResultatFileName, "Budget");
-        // if (!file) {
-        //     throw new Error("FileNotFound: " + exportedResultatFileName);
-        // }
-        // const spreadsheet = SpreadsheetAppUtils.MySpreadsheetApp.open(file);
-        // const sheet = spreadsheet.getSheets()[0];
-        let data = exportedResultatRakning.getDataRange().getValues();
-        const headerRowIndex = 2;
-        data = data.slice(headerRowIndex);
-        const columns = toObject(data[0], (val, index) => [val, index]);
-        // Remove header row:
-        data = data.slice(1);
-        //Remove rows not starting with accountId (e.g. 'total' rows): 
-        const rxStartWithAccount = /^\d{5}/;
-        data = data.filter(row => rxStartWithAccount.exec(row[0]) != null);
-        const accountToBudget = toObject(data, row => {
-            const val = parseFloat(row[columns['Budget ack']]); //Utfall ack
-            return [(rxStartWithAccount.exec(row[0]) || "").toString(), isNaN(val) ? 0 : val];
-        });
-        return accountToBudget;
-    }
-
     static applyFilters(dataToFilter: any[][], funcFilters: Array<(row: any[][]) => any[][]>) {
         if (funcFilters) {
             // Logger.log('filtering started: ' + dataToFilter.length);
@@ -413,5 +396,55 @@ export class Budgeteer {
             list.push(row);
         }
         return byResponsibility;
+    }
+}
+
+export interface ResultatRapportRow {
+    account: number;
+    current: number;
+    previous: number | null;
+    budget: number | null;
+}
+
+export class ResultatRakning {
+    static getRowsByAccountId(exportedResultatRakning: ISheet) {
+        const rows = ResultatRakning.getTypedRows(exportedResultatRakning);
+        return <KeyValueMap<ResultatRapportRow>>toObject(rows, row => [row.account, row]);
+    }
+
+    static getTypedRows(exportedResultatRakning: ISheet): ResultatRapportRow[] {
+        //Get from SBC export
+        let data = exportedResultatRakning.getDataRange().getValues();
+        const headerRowIndex = 2;
+        data = data.slice(headerRowIndex);
+        const columns = toObject(data[0], (val, index) => [val, index]);
+        // Remove header row:
+        data = data.slice(1);
+        const rxStartWithAccount = /^\d{5}/;
+
+        const result: ResultatRapportRow[] = [];
+        for (let i = 0; i < data.length; i++) {
+            const row = data[i];
+            const acc = parseFloatOrDefault(rxStartWithAccount.exec(row[0])?.toString(), 0);
+            if (acc == 0) continue;
+            result.push(<ResultatRapportRow>{ 
+                account: acc, 
+                current: parseFloatOrAny(row[columns["Utfall ack"]], null),
+                previous: parseFloatOrAny(row[columns["Utfall fgå ack"]], null),
+                budget: parseFloatOrAny(row[columns["Budget ack"]], null)
+            });
+        }
+        return result;
+        // data.map(row => ({account: rxStartWithAccount.exec(row[0])?.toString(), row: row}))
+        //     .filter(row => !!row.account).map(row => { account:});
+        // const cols = "Utfall ack	Budget ack	Utfall fgå ack".split("\t");
+        // const cc = { "Utfall ack": "current", "Budget ack": "budget", "Utfall fgå ack": "previous"};
+        // const accountToBudget = toObject(data, row => {
+        //     const props = toObject(cols.map(c => [c, parseFloat(row[columns[c]])]));
+        //     // return [row[0], props];
+        //     const val = parseFloat(row[columns['Budget ack']]);
+        //     return [(rxStartWithAccount.exec(row[0]) || "").toString(), isNaN(val) ? 0 : val];
+        // });
+        // return accountToBudget;
     }
 }
