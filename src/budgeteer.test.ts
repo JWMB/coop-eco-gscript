@@ -56,6 +56,14 @@ describe('Budget', () => {
         expect(kontoRow41100[4]).toBe(9993);
     });
 
+    it('konton_budget_relatives', () => {
+        const kontoSheet = SpreadsheetAppUtils.openSheet("Konton");
+        Budgeteer.fillBudgetRelative(kontoSheet, 2019); // "2020", "Budget 2020", "Rel 2020");
+        const kontoData = kontoSheet.getDataRange().getValues();
+        const kontoRow41100 = kontoData.filter(r => r[0].toString().indexOf("41100") == 0)[0];
+        // TODO:
+    });
+
     it('fillResponsibilityTotals', () => {
         const xsheet = new MockSheet("0", tsvToRows(someonesBudget));
         const accountId2Row = Budgeteer.getRowIndexToAccountId(xsheet, 0);

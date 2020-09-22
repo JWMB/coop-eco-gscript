@@ -74,11 +74,14 @@ export function toObject(
   return result;
 }
 
+function parseFloatInternal(value: any): number {
+  return value == null ? Number.NaN : parseFloat(value.toString().replace(/\s/g, ""));
+}
 export function parseFloatOrDefault(value: any, defaultValue: number = 0): number {
-  const result = parseFloat(value);
+  const result = parseFloatInternal(value);
   return isNaN(result) ? defaultValue : result;
 }
 export function parseFloatOrAny(value: any, defaultValue: any): any {
-  const result = parseFloat(value);
+  const result = parseFloatInternal(value);
   return isNaN(result) ? defaultValue : result;
 } 

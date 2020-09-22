@@ -183,12 +183,12 @@ export class Budgeteer {
         return summaryRows;
     }
 
-    static fillBudgetRelative(kontonBudgetSheet: ISheet, columnActualName: string, columnBudgetName: string, columnRelativeName: string) {
+    static fillBudgetRelative(kontonBudgetSheet: ISheet, year: number) {
         //actual expenditure relative to budget as percentage (mark as red or green)
         const columns = SheetUtils.getHeaderColumnsAsObject(kontonBudgetSheet);
-        const budgetColumnIndex = columns[columnBudgetName];
-        const actualColumnIndex = columns[columnActualName];
-        const relativeColumnIndex = columns[columnRelativeName];
+        const budgetColumnIndex = columns[`Budget ${year}`];
+        const actualColumnIndex = columns[`${year}`];
+        const relativeColumnIndex = columns[`Rel ${year}`];
         if (relativeColumnIndex < 0 || actualColumnIndex < 0 || budgetColumnIndex < 0) return;
 
         const data = kontonBudgetSheet.getDataRange().getValues();
@@ -230,7 +230,6 @@ export class Budgeteer {
                         const cell = kontonBudgetSheet.getRange(rIndex + 1, rr2kontonCols[k] + 1).getCell(1, 1);
                         cell.setValue(val == null ? "" : val); //Overwrite with empty string when null
                     });
-                    //Logger.log('' + accountId + ' ' + budgetByAccountId[accountId] + ' ' + row[columns['2019']]);
                 }
             }
         }

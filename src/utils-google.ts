@@ -1,5 +1,17 @@
 import { toObject, KeyValueMap } from './utils';
 
+// Remove these from built js
+export var SpreadsheetApp: ISpreadsheetApp;
+export var DriveApp: IDriveApp;
+export var Charts: ICharts;
+export class Logger {
+  static log(val: any): void {
+    console.log(val);
+  }
+}
+// End remove
+
+
 // shims
 export interface IDriveApp {
   getFilesByName(name: string): IFileIterator;
@@ -92,16 +104,6 @@ export interface IChartsType {
 }
 export interface ICharts {
   ChartType: IChartsType; //Charts.ChartType.LINE
-}
-
-export var SpreadsheetApp: ISpreadsheetApp;
-export var DriveApp: IDriveApp;
-export var Charts: ICharts;
-
-export class Logger {
-  static log(val: any): void {
-    console.log(val);
-  }
 }
 
 export class SpreadsheetAppUtils
