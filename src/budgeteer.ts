@@ -289,8 +289,7 @@ export class Budgeteer {
              }
             // Logger.log("Role: " + role);
 
-            const file = DriveUtils.getOrCreateSpreadsheet("Budget " + role, folderForSpreadsheets);
-            const spreadsheet = SpreadsheetAppUtils.open(file);
+            const spreadsheet = SpreadsheetAppUtils.openOrCreate("Budget " + role, folderForSpreadsheets);
             let targetSheet = spreadsheet.getSheets()[0];
 
             //Get or create user-filled rows:

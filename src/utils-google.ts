@@ -44,6 +44,7 @@ export interface IFolder extends IFileSystemItem {
 export interface ISpreadsheetApp {
   getActiveSpreadsheet(): ISpreadsheet;
   openById(id: string): ISpreadsheet;
+  // What the... Don't use! https://groups.google.com/g/adwords-scripts/c/91muafXSS5E?pli=1
   open(file: IFile): ISpreadsheet;
   create(name: string): IFile;
 }
@@ -128,22 +129,26 @@ export class SpreadsheetAppUtils
   }
 
   static open(file: IFile) {
-    return SpreadsheetAppUtils.MySpreadsheetApp.open(file);
+    // https://groups.google.com/g/adwords-scripts/c/91muafXSS5E?pli=1
+    return SpreadsheetAppUtils.MySpreadsheetApp.openById(file.getId());
   }
 
   static openOrCreate(fileName: string, folderName: string): ISpreadsheet {
     const file = DriveUtils.getOrCreateSpreadsheet(fileName, folderName);
+    
      // gdrive seems to be async but method is sync..? Can't always open immediately after creation
-    const maxTime = 2000;
-    const start = Date.now();
-    while (Date.now() - start < maxTime) {
-      try {
-        return SpreadsheetAppUtils.MySpreadsheetApp.open(file);
-      } catch {
-        sleep(500);
-      }
-    }
-    throw new Error(`Can't open the file ${fileName} in ${folderName}`);
+    // const maxTime = 5000;
+    // const start = Date.now();
+    // while (true) {
+    //   try {
+    //     return SpreadsheetAppUtils.MySpreadsheetApp.open(file);
+    //   } catch (err) {
+    //     if (Date.now() - start >= maxTime) { break; }
+    //     sleep(500);
+    //   }
+    // }
+    // throw `Can't open the file ${fileName} in ${folderName}`;
+    return SpreadsheetAppUtils.MySpreadsheetApp.openById(file.getId());
   }
 
   static openByName(name: string): ISpreadsheet {
