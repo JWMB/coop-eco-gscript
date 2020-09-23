@@ -108,7 +108,6 @@ export class MockCell implements ICell {
         return this.sheet.rows[this.row][this.col];
     }
     setFontColor(val: string): void {
-        throw new Error("Method not implemented.");
     }
     toString() {
         return `r${this.row}c${this.col} ${this.getValue()}`;

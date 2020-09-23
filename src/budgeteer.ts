@@ -86,7 +86,6 @@ export class Budgeteer {
         ], aggregateDef, false);
 
         const orgSheet = SpreadsheetAppUtils.MySpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
-        //var orgSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Copy of Sheet1");
         const orgRows = orgSheet.getDataRange().getValues();
         const orgCols = toObject(orgRows[0], (v, i) => [v, i]);
         const aaaa = orgRows
@@ -131,7 +130,7 @@ export class Budgeteer {
         const textForUserEditStart = "---BUDGET---";
         let allRows: any[][] = [];
         files.forEach(file => {
-            const spreadsheet = SpreadsheetAppUtils.MySpreadsheetApp.open(file);
+            const spreadsheet = SpreadsheetAppUtils.open(file);
             const sheet = spreadsheet.getSheets()[0];
             const foundUserEditRowIndex = sheet.getDataRange().getValues().reduce((res, row, index) =>
                 res >= 0 ? res : (row[0] === textForUserEditStart ? index : -1)
@@ -258,9 +257,9 @@ export class Budgeteer {
     static fillResponsibilitySpreadsheets(
         kontonSpreadsheet: ISpreadsheet, 
         transactionSpreadsheet: ISpreadsheet, 
-        filterResponsibilities?: string[],
-        folderForSpreadsheets: string = "Budget2021")
-        {
+        folderForSpreadsheets: string,
+        filterResponsibilities?: string[])
+    {
         const ss = transactionSpreadsheet;
         const txSheet = ss.getSheets()[0];
         let txData = txSheet.getDataRange().getValues();
@@ -291,7 +290,7 @@ export class Budgeteer {
             // Logger.log("Role: " + role);
 
             const file = DriveUtils.getOrCreateSpreadsheet("Budget " + role, folderForSpreadsheets);
-            const spreadsheet = SpreadsheetAppUtils.MySpreadsheetApp.open(file);
+            const spreadsheet = SpreadsheetAppUtils.open(file);
             let targetSheet = spreadsheet.getSheets()[0];
 
             //Get or create user-filled rows:

@@ -92,7 +92,7 @@ describe('Budget', () => {
 
         Budgeteer.fillResponsibilitySpreadsheets(
             SpreadsheetAppUtils.openByName("Konton"), 
-            SpreadsheetAppUtils.openByName("Transaktioner"));
+            SpreadsheetAppUtils.openByName("Transaktioner"), budgetFolderName);
         const files = DriveUtils.getFilesInFolderName(budgetFolderName);
         //const fileNames = files.map(f => f.getName());
         expect(files.map(f => f.getName())).toStrictEqual(

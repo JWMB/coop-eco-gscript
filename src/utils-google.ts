@@ -1,4 +1,4 @@
-import { toObject, KeyValueMap } from './utils';
+import { toObject, KeyValueMap, sleep } from './utils';
 
 // Remove these from built js
 export var SpreadsheetApp: ISpreadsheetApp;
@@ -127,6 +127,25 @@ export class SpreadsheetAppUtils
     return sheet;
   }
 
+  static open(file: IFile) {
+    return SpreadsheetAppUtils.MySpreadsheetApp.open(file);
+  }
+
+  static openOrCreate(fileName: string, folderName: string): ISpreadsheet {
+    const file = DriveUtils.getOrCreateSpreadsheet(fileName, folderName);
+     // gdrive seems to be async but method is sync..? Can't always open immediately after creation
+    const maxTime = 2000;
+    const start = Date.now();
+    while (Date.now() - start < maxTime) {
+      try {
+        return SpreadsheetAppUtils.MySpreadsheetApp.open(file);
+      } catch {
+        sleep(500);
+      }
+    }
+    throw new Error(`Can't open the file ${fileName} in ${folderName}`);
+  }
+
   static openByName(name: string): ISpreadsheet {
     const iter = DriveUtils.MyDriveApp.getFilesByName(name);
     if (iter.hasNext()) {
@@ -208,7 +227,6 @@ static getOrCreateSpreadsheet(fileName: string, folderName: string): IFile {
           file = SpreadsheetAppUtils.create(fileName, folder);
           return file;
       }
-
 }
 
 static iterateSingle<T>(iterator: IIterator<T>): T {
