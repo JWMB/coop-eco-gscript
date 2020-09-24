@@ -4,10 +4,14 @@ import { Aggregation, AggregationDefinition } from './aggregation'
 import { Timeseries } from './timeseries'
 
 export class Budgeteer {
+    /**
+     * We don't really want to use this? Better to use actual values from SBC as exported in ResultatRakning? 
+     * @param sheet A budget sheet (Konton or a Eesponsibility sheet)
+     * @param transactionSheetSrc sbc_scrape-generated transaction sheet
+     */
     static fillWithTotalAmounts(sheet: ISheet, transactionSheetSrc: ISheet) {
         //Get data from Transactions spreadsheet:
-        // const ss = this.transactionSpreadsheet;
-        const txSheet = transactionSheetSrc; //ss.getSheets()[0];
+        const txSheet = transactionSheetSrc;
         let columns = SheetUtils.getHeaderColumnsAsObject(txSheet);
         let data = txSheet.getDataRange().getValues();
         data = data.slice(1);
@@ -57,18 +61,12 @@ export class Budgeteer {
             const cellVal = range.getCell(i, 1).getValue();
             const accountId = parseFloat(cellVal);
             if (isNaN(accountId) || !accountId) { //!!accountId && accountId != " " && !isNaN(parseFloat(accountId))) {
-                break; // Stop when we're through top porting
+                break; // Stop when we're through top part (ie before user-filled budget part)
             }
             result[i.toString()] = accountId;
         }
         return result;
     }
-    // static getAccountIdToRowIndex(sheet: ISheet, accountIdColumnIndex: number) {
-    //     const r2a = Budgeteer.getRowIndexToAccountId(sheet, accountIdColumnIndex);
-    //     const result: KeyValueMap<number> = {};
-    //     Object.keys(r2a).forEach(k => result[r2a[k].toString()] = parseFloat(k));
-    //     return result;
-    // }
 
     static runCollect(budgetFolder: string) {
         const budgetRows = Budgeteer.collectFromResponsibilitySheets(budgetFolder);
@@ -136,14 +134,17 @@ export class Budgeteer {
                 res >= 0 ? res : (row[0] === textForUserEditStart ? index : -1)
                 , -1);
             const responsibility = file.getName().substr(filePrefix.length);
+            const isFirstRole = allRows.length == 0;
             const rows = sheet.getDataRange().getValues()
-                .slice(foundUserEditRowIndex + 1 + (allRows.length == 0 ? 0 : 1)); //Include header first time
-            rows.forEach(r => {
+                .slice(foundUserEditRowIndex + 1 + (isFirstRole ? 0 : 1)); //Include header first time
+            rows.forEach((r, i) => {
                 // Always treat them as costs regardless of sign
                 if (!!r[2] && !isNaN(parseFloat(r[2])) && parseFloat(r[2]) > 0) {
                     r[2] = -parseFloat(r[2]);
                 }
-                r[5] = responsibility;
+                if (!isFirstRole || i > 0) {
+                    r[5] = responsibility;
+                }
             });
             // console.log(rows);
             allRows = allRows.concat(rows);
@@ -254,6 +255,11 @@ export class Budgeteer {
         sheet.insertChart(chart);
     }
 
+    static budgetDefaultResponsibility =  [
+        ["Konto", "Datum", "Summa", "Mottagare", "Kommentar"],
+        ["11100", "2019-12-01", "0", "Firma AB", "Julgranspynt"]
+    ];
+
     static fillResponsibilitySpreadsheets(
         kontonSpreadsheet: ISpreadsheet, 
         transactionSpreadsheet: ISpreadsheet, 
@@ -282,7 +288,6 @@ export class Budgeteer {
         const byResponsibility = Budgeteer.getRowsPerResponsibility(data, columns.Ansvar);
 
         for (let role in byResponsibility) {
-            //"Tak och plåt", "Kassör", "Sekreterare","Ordförande", "Utemiljö", "Förvaltarkontakt", "Reparationer", "Ventilation och värme", "Fasader och fönster", "Asfalt"
             if (filterResponsibilities && filterResponsibilities.indexOf(role) < 0) { 
                 Logger.log("Skip " + role); 
                 continue;
@@ -302,10 +307,9 @@ export class Budgeteer {
                 // Logger.log('found existing rows starting at ' + foundUserEditRowIndex); //targetSheet.getDataRange().getValues()[foundUserEditRowIndex]);
                 additionalRows = additionalRows.concat(targetSheet.getDataRange().getValues().slice(foundUserEditRowIndex));
             } else {
-                additionalRows = additionalRows.concat([[textForUserEditStart, "Ändra ej denna och nästa rad, används för automatisk inläsning"],
-                ["Konto", "Datum", "Summa", "Mottagare", "Kommentar"],
-                ["11100", "2019-12-01", "0", "Firma AB", "Julgranspynt"]
-                ]);
+                additionalRows = additionalRows
+                    .concat([[textForUserEditStart, "Ändra ej denna och nästa rad, används för automatisk inläsning"]])
+                    .concat(Budgeteer.budgetDefaultResponsibility);
             }
 
             //Join account total rows with used-data rows and fill sheet:
@@ -335,6 +339,7 @@ export class Budgeteer {
                 // txDataForResp.sort(fSort);
             }
             targetSheet = SheetUtils.getOrCreateSheet("Transaktioner", true, spreadsheet);
+
             txDataForResp = [txHeaderRow].concat(txDataForResp);
             SheetUtils.fillSheet(targetSheet, txDataForResp);
 

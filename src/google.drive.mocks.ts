@@ -1,12 +1,14 @@
+import { createGuid } from "./utils";
 import { IDriveApp, IFile, IFileIterator, IFolder, IFolderIterator, IIterator } from "./utils-google";
 
 export class MockFileSystemObject {
-    protected id: string = "";
+    protected id: string;
     protected name: string = "";
     parents: IFolder[] = [];
 
     constructor(name?: string) {
         this.name = name || "";
+        this.id = createGuid();
     }
     getId(): string {
         return this.id;
@@ -27,8 +29,10 @@ export class MockFile extends MockFileSystemObject implements IFile {
     }
     static create(name: string, info: { content: any, id: (string | null)}): IFile {
         const result = new MockFile(name, null);
-        result.id = (info || {}).id || name;
+        const providedId = (info || {}).id;
+        if (!!providedId) { result.id = providedId; }
         result.content = (info || {}).content;
+        if (result.content && !!result.content.__setParentFile) { result.content.__setParentFile(result); }
         return result;
     }
 }

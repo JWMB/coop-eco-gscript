@@ -89,24 +89,32 @@ describe('Budget', () => {
 
     it('responsibilities', () => {
         const budgetFolderName = "Budget2021";
+        //"Tak och plåt", "Kassör", "Sekreterare","Ordförande", "Utemiljö", "Förvaltarkontakt", "Reparationer", "Ventilation och värme", "Fasader och fönster", "Asfalt"
 
         Budgeteer.fillResponsibilitySpreadsheets(
             SpreadsheetAppUtils.openByName("Konton"), 
-            SpreadsheetAppUtils.openByName("Transaktioner"), budgetFolderName);
+            SpreadsheetAppUtils.openByName("Transaktioner"), budgetFolderName); //, ["Utemiljö", "Förvaltarkontakt", "Ordförande"]);
+
         const files = DriveUtils.getFilesInFolderName(budgetFolderName);
-        //const fileNames = files.map(f => f.getName());
         expect(files.map(f => f.getName())).toStrictEqual(
             ["Budget Utemiljö", "Budget Förvaltarkontakt", "Budget Ordförande", "Budget Ventilation och värme", "Budget Reparationer"]);
         
         const spreads = files.map(f => SpreadsheetAppUtils.openByName(f.getName()));
-        expect(spreads.filter(s => s.getSheets().length != 2).length).toBe(0);
+        expect(spreads.map(s => s.getSheets().length)).toStrictEqual(spreads.map(s => 2));
 
         const budgetUte = SpreadsheetAppUtils.openByName("Budget Utemiljö");
         const row2 = budgetUte.getSheets()[1].getDataRange().getValues()[1];
         expect(row2.slice(0,4)).toStrictEqual(["2020-07-20 0:00:00", "",  -17796, "TrädgårdsHuset"]);
 
         const data = Budgeteer.collectFromResponsibilitySheets(budgetFolderName);
-        //console.log(data);
+        
+        // all roles except Utemiljö (b/c specifically defined document) should only have defaults (11110 Firma AB etc)
+        const defaultRow = Budgeteer.budgetDefaultResponsibility[1];
+        const defaultRows = data.filter(r => r[0] == defaultRow[0]);
+        expect(defaultRows.length).toBe(files.length - 1);
+
+        const utemiljoRows = data.slice(1).filter(r => r[0] != defaultRow[0]);
+        expect(utemiljoRows.length).toBe(3);
     })
 });
 

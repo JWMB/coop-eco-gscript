@@ -49,11 +49,13 @@ export interface ISpreadsheetApp {
   create(name: string): IFile;
 }
 export interface ISpreadsheet {
+  getName(): string;
   getSheets(): ISheet[];
   insertSheet(): ISheet;
   getSheetByName(name: string): ISheet;
 }
 export interface ISheet {
+  getParent(): ISpreadsheet;
   getDataRange(): ISheetRange;
   getRange(rowIndex: number, colIndex: number, rowCount?: number, colCount?: number): ISheetRange;
   setName(name: string): void;
@@ -133,8 +135,25 @@ export class SpreadsheetAppUtils
     // https://groups.google.com/g/adwords-scripts/c/91muafXSS5E?pli=1
   static open(file: IFile) { return SpreadsheetAppUtils.MySpreadsheetApp.openById(file.getId()); }
 
+  static getOrCreateSpreadsheetFile(fileName: string, folderName: string): IFile {
+    const folder = DriveUtils.getSingleFolder(folderName); //.iterateToFirst(DriveUtils.MyDriveApp.getFoldersByName(folderName));
+    if (!folder) {
+      throw new Error("No folder: " + folderName);
+    }
+    const folderId = folder.getId();
+
+    let file = DriveUtils.getFileInFolderId(fileName, folderId);
+
+    if (file) {
+        return file;
+    } else {
+        //Logger.log("Creating file " + fileName);
+        file = SpreadsheetAppUtils.create(fileName, folder);
+        return file;
+    }
+}
   static openOrCreate(fileName: string, folderName: string): ISpreadsheet {
-    const file = DriveUtils.getOrCreateSpreadsheet(fileName, folderName);
+    const file = SpreadsheetAppUtils.getOrCreateSpreadsheetFile(fileName, folderName);
     
      // gdrive seems to be async but method is sync..? Can't always open immediately after creation
     // const maxTime = 5000;
@@ -214,24 +233,6 @@ export class DriveUtils {
     return DriveUtils.iterateToFirst(DriveUtils.MyDriveApp.getFilesByName(fileName), file =>
       DriveUtils.iterateToFirst(file.getParents(), par => par.getId() === folderId) !== null
     );
-}
-
-static getOrCreateSpreadsheet(fileName: string, folderName: string): IFile {
-      const folder = DriveUtils.getSingleFolder(folderName); //.iterateToFirst(DriveUtils.MyDriveApp.getFoldersByName(folderName));
-      if (!folder) {
-        throw new Error("No folder: " + folderName);
-      }
-      const folderId = folder.getId();
-  
-      let file = DriveUtils.getFileInFolderId(fileName, folderId);
-  
-      if (file) {
-          return file;
-      } else {
-          //Logger.log("Creating file " + fileName);
-          file = SpreadsheetAppUtils.create(fileName, folder);
-          return file;
-      }
 }
 
 static iterateSingle<T>(iterator: IIterator<T>): T {

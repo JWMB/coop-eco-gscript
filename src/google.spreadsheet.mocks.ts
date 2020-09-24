@@ -1,5 +1,6 @@
 import { DriveUtils, ICell, IChart, IDriveApp, IFile, IFilterCriteria, ISheet, ISheetFilter, ISheetRange, ISpreadsheet, ISpreadsheetApp } from "./utils-google";
 import { MockDriveApp, MockFile } from './google.drive.mocks'
+import { createGuid } from "./utils";
 export class MockSpreadsheetApp implements ISpreadsheetApp {
     drive: IDriveApp;
     constructor(drive: IDriveApp) {
@@ -24,14 +25,25 @@ export class MockSpreadsheetApp implements ISpreadsheetApp {
 
 export class MockSpreadsheet implements ISpreadsheet {
     sheets: ISheet[];
+    name: string; //TODO: should be IFile.name, no?
+    parent: IFile | null = null;
     constructor(sheets: ISheet[]) {
+        sheets.forEach(s => (<MockSheet>s).parent = this);
         this.sheets = sheets;
+        this.name = createGuid();
+    }
+    __setParentFile(file: IFile) {
+        this.parent = file;
+    }
+    getName(): string {
+        return this.parent?.getName() || this.name;
     }
     getSheets() {
         return this.sheets;
     } 
     insertSheet() {
         const sheet = new MockSheet("new sheet" + this.sheets.length, []);
+        sheet.parent = this;
         this.sheets.push(sheet);
         return sheet;
     }
@@ -142,9 +154,14 @@ export class MockFilter implements ISheetFilter {
 
 export class MockSheet implements ISheet {
     rows: any[][];
+    parent: ISpreadsheet | null = null;
     constructor(name: string, rows: any[][]) {
         this.name = name;
         this.rows = rows;
+    }
+    getParent() {
+        if (!this.parent) throw new Error("Parent not set");
+        return this.parent;
     }
     getDataRange(): ISheetRange {
         return new MockSheetRange(this);

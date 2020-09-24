@@ -1,5 +1,6 @@
 import { MockDriveApp, MockFolder } from './google.drive.mocks';
 import { MockSheet, MockSpreadsheet, MockSpreadsheetApp } from './google.spreadsheet.mocks';
+import { DriveUtils, SpreadsheetAppUtils } from './utils-google';
 
 describe('Budget', () => {
     it('works', () => {
@@ -20,5 +21,19 @@ A3	B3	C3
 
         const cell = r.getCell(1, 1);
         expect(cell.getValue()).toBe("B1")
+    });
+
+    it('createSpreadsheets', () => {
+        const rootFolder = MockFolder.createTree({ 
+            folders: { 
+                "folder": {
+                }
+            }
+        });
+        DriveUtils.MyDriveApp = new MockDriveApp(rootFolder);
+        (<any>SpreadsheetAppUtils).MySpreadsheetApp = new MockSpreadsheetApp(DriveUtils.MyDriveApp);
+        var file1 = SpreadsheetAppUtils.getOrCreateSpreadsheetFile("file1", "folder");
+        var file2 = SpreadsheetAppUtils.getOrCreateSpreadsheetFile("file2", "folder");
+        expect(file1.getId() == file2.getId()).toBe(false);
     });
 });
