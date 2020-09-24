@@ -109,7 +109,9 @@ export interface ICharts {
 
 export class SpreadsheetAppUtils
 {
-  static MySpreadsheetApp: ISpreadsheetApp = SpreadsheetApp;
+  private static MySpreadsheetApp: ISpreadsheetApp = SpreadsheetApp;
+
+  static getActiveSpreadsheet() { return SpreadsheetAppUtils.MySpreadsheetApp.getActiveSpreadsheet(); }
 
   // static open(file: IFile): ISpreadsheet {
   //   return SpreadsheetAppUtils.MySpreadsheetApp.open(file);
@@ -128,10 +130,8 @@ export class SpreadsheetAppUtils
     return sheet;
   }
 
-  static open(file: IFile) {
     // https://groups.google.com/g/adwords-scripts/c/91muafXSS5E?pli=1
-    return SpreadsheetAppUtils.MySpreadsheetApp.openById(file.getId());
-  }
+  static open(file: IFile) { return SpreadsheetAppUtils.MySpreadsheetApp.openById(file.getId()); }
 
   static openOrCreate(fileName: string, folderName: string): ISpreadsheet {
     const file = DriveUtils.getOrCreateSpreadsheet(fileName, folderName);

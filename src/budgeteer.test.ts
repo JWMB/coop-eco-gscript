@@ -29,7 +29,7 @@ function setupFileStructure() {
         }
     });
     DriveUtils.MyDriveApp = new MockDriveApp(rootFolder);
-    SpreadsheetAppUtils.MySpreadsheetApp = new MockSpreadsheetApp(DriveUtils.MyDriveApp);
+    (<any>SpreadsheetAppUtils).MySpreadsheetApp = new MockSpreadsheetApp(DriveUtils.MyDriveApp);
 }
 
 beforeEach(() => {

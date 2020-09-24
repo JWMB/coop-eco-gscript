@@ -85,7 +85,7 @@ export class Budgeteer {
             { col: columns.Konto, name: 'Konto', func: v => <string | number>(accountTranslation.get(parseFloat(v.toString())) || v) },
         ], aggregateDef, false);
 
-        const orgSheet = SpreadsheetAppUtils.MySpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+        const orgSheet = SpreadsheetAppUtils.getActiveSpreadsheet().getSheets()[0];
         const orgRows = orgSheet.getDataRange().getValues();
         const orgCols = toObject(orgRows[0], (v, i) => [v, i]);
         const aaaa = orgRows
@@ -118,7 +118,7 @@ export class Budgeteer {
         let summaryRows = Budgeteer.summarizeBudgetRows(filtered);
         const tmpStrangeTypeError = <(string | number)[][]>[[], [], ["Account series summaries"]];
         summaryRows = tmpStrangeTypeError.concat(summaryRows);
-        const collectedTargetSheet = SheetUtils.getOrCreateSheet("Collected", true, SpreadsheetAppUtils.MySpreadsheetApp.getActiveSpreadsheet());
+        const collectedTargetSheet = SheetUtils.getOrCreateSheet("Collected", true, SpreadsheetAppUtils.getActiveSpreadsheet());
         SheetUtils.fillSheet(collectedTargetSheet, budgetRows.concat(summaryRows), 0, 0);
     }
 
