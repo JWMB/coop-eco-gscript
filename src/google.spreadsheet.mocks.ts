@@ -121,6 +121,8 @@ export class MockCell implements ICell {
     }
     setFontColor(val: string): void {
     }
+    setFormula(formula: string): void {
+    }
     toString() {
         return `r${this.row}c${this.col} ${this.getValue()}`;
     }

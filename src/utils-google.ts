@@ -101,6 +101,7 @@ export interface ICell {
   setValue(val: any): void;
   getValue(): any;
   setFontColor(val: string): void;
+  setFormula(formula: string): void;
 }
 export interface IChartsType {
   LINE: string;
@@ -264,6 +265,10 @@ export class SheetUtils {
 
   static fillSheet(sheet: ISheet, data: any[][], offsetRow: number = 0, offsetColumn: number = 0) {
     data.forEach((row, ir) => {
+      if (!row || (<any>row).constructor !== Array) {
+        console.log(`Not an array: ${row}`);
+        return;
+      }
       row.forEach((val, ic) => {
         const cell = sheet.getRange(ir + 1 + offsetRow, ic + 1 + offsetColumn).getCell(1, 1);
         cell.setValue(val);

@@ -309,8 +309,17 @@ export class Budgeteer {
                     .concat(Budgeteer.budgetDefaultResponsibility);
             }
 
-            //Join account total rows with used-data rows and fill sheet:
-            let rowsWithHeader = [data[0]].concat(byResponsibility[role]);
+            // create SUM row for byResponsibility[role]
+            // Note: we could use cell.setFormula("=SUM(B2:B5)") - need some col/row (int, int) -> string helper first 
+            const colsToSummarize = toObject(Object.keys(columns).filter(c => /\d{4}/.test(c)), (v, i) => [v, 0]);
+            byResponsibility[role].forEach(row => {
+                Object.keys(colsToSummarize).forEach(k => colsToSummarize[k] += parseFloatOrDefault(row[columns[k]]));
+            });
+            const sumsRow = data[0].map(v => typeof colsToSummarize[v] == "number" ? colsToSummarize[v] : "");
+            sumsRow[columns.Konto] = "TOTAL";
+            
+            // Join account total rows with used-data rows and fill sheet:
+            let rowsWithHeader = [data[0]].concat(byResponsibility[role]).concat([sumsRow]);
             rowsWithHeader = rowsWithHeader.concat(additionalRows);
 
             targetSheet.getDataRange().clearContent();
@@ -322,22 +331,9 @@ export class Budgeteer {
 
             const rxFilter = new RegExp("^(" + accountIds.join("|") + ")")
             const filters = Timeseries.createFilters(txColumns, rxFilter);
-            let txDataForResp = Budgeteer.applyFilters(txData, filters);
-
-            if (false) { //Nah, better the user filters themselves
-                // //Order by accountId, then by date
-                // var fSort = (a, b) => {
-                //     if (a[txColumns.AccountId] > b[txColumns.AccountId]) return 1;
-                //     if (a[txColumns.AccountId] < b[txColumns.AccountId]) return -1;
-                //     if (a[txColumns.Date] > b[txColumns.Date]) return -1;
-                //     if (a[txColumns.Date] < b[txColumns.Date]) return 1;
-                //     return 0;
-                // }
-                // txDataForResp.sort(fSort);
-            }
             targetSheet = SheetUtils.getOrCreateSheet("Transaktioner", true, spreadsheet);
 
-            txDataForResp = [txHeaderRow].concat(txDataForResp);
+            const txDataForResp = [txHeaderRow].concat(Budgeteer.applyFilters(txData, filters));
             SheetUtils.fillSheet(targetSheet, txDataForResp);
 
             // Budgeteer.createChartSheet(spreadsheet, targetSheet, accountIds);
