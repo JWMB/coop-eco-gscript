@@ -107,7 +107,6 @@ describe('Budget', () => {
         expect(row2.slice(0,4)).toStrictEqual(["2020-07-20 0:00:00", "",  -17796, "TrädgårdsHuset"]);
 
         const data = Budgeteer.collectFromResponsibilitySheets(budgetFolderName);
-        
         // all roles except Utemiljö (b/c specifically defined document) should only have defaults (11110 Firma AB etc)
         const defaultRow = Budgeteer.budgetDefaultResponsibility[1];
         const defaultRows = data.filter(r => r[0] == defaultRow[0]);
@@ -115,6 +114,14 @@ describe('Budget', () => {
 
         const utemiljoRows = data.slice(1).filter(r => r[0] != defaultRow[0]);
         expect(utemiljoRows.length).toBe(3);
+
+        const kontonSSheet = SpreadsheetAppUtils.openByName("Konton");
+        Budgeteer.runCollect(kontonSSheet, "Budget 2020", budgetFolderName, account => account != 11100);
+        const filledSheet = kontonSSheet.getSheets()[0].getDataRange().getValues();
+        expect(filledSheet[1][0]).toBe(45613);
+        expect(filledSheet[1][4]).toBe(-20000);
+        expect(filledSheet[2][0]).toBe(45640);
+        expect(filledSheet[2][4]).toBe(-1000000);
     })
 });
 
@@ -195,6 +202,8 @@ Summa Rörelsens intäkter		711,417	6,390,503	8,537,000	8,373,211
 41110 Fastighetsskötsel beställning			-7,063				`;
 
 const konton = `Konto	2018	2019	2020	Budget 2020	Rel 2020	Budget 2021	Namn	Ansvar	Kommentar
+45613							N/A		
+45640							N/A		
 11820							Pågående om- och tillbyggnad		
 12110							N/A		
 15210							N/A		

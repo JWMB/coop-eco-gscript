@@ -1,5 +1,5 @@
 import { ISheet, Charts, DriveUtils, SpreadsheetApp, ISpreadsheet, SheetUtils, Logger, ISheetRange, SpreadsheetAppUtils } from './utils-google'
-import { KeyValueMap, parseFloatOrAny, parseFloatOrDefault, toObject } from './utils'
+import { KeyValueMap, parseFloatOrAny, parseFloatOrDefault, removeObjectKeys, toObject } from './utils'
 import { Aggregation, AggregationDefinition } from './aggregation'
 import { Timeseries } from './timeseries'
 
@@ -68,34 +68,35 @@ export class Budgeteer {
         return result;
     }
 
-    static runCollect(budgetFolder: string) {
-        const budgetRows = Budgeteer.collectFromResponsibilitySheets(budgetFolder);
-
-        const filtered = Budgeteer.filterCollectedBudgetRows(budgetRows);
+    static runCollect(kontonSpreadsheet: ISpreadsheet, kontonBudgetColName: string, budgetFolder: string, filterAccountsFunc: (account: number) => boolean = a => true) {
+        let budgetRows = Budgeteer.collectFromResponsibilitySheets(budgetFolder);
+        //const filtered = budgetRows.filter(row => !isNaN(parseFloat(row[0])) && !isNaN(parseFloat(row[2])));
 
         // transfer to main sheet
         const columns = toObject(budgetRows[0], (v, i) => [v, i]);
+        budgetRows = budgetRows.slice(1);
         //Konto	Datum	Summa
         const accountTranslation = new Map<number, number>([[41180, 41170], [46401, 46400], [46430, 46400]]);
         // const accountTranslation = { 41180: 41170, 46401: 46400, 46430: 46400 };
         const aggregateDef: AggregationDefinition = { col: columns.Summa, name: 'Sum', func: (v, p) => (parseInt(v, 10) || 0) + (p || 0) };
-        const aggregated = Aggregation.aggregateRows(filtered, [
-            { col: columns.Konto, name: 'Konto', func: v => <string | number>(accountTranslation.get(parseFloat(v.toString())) || v) },
-        ], aggregateDef, false);
-
-        const orgSheet = SpreadsheetAppUtils.getActiveSpreadsheet().getSheets()[0];
+        const aggregated = removeObjectKeys(
+            Aggregation.aggregateRows(budgetRows, [
+                { col: columns.Konto, name: 'Konto', func: v => <string | number>(accountTranslation.get(parseFloat(v.toString())) || v) },
+            ], aggregateDef, false), k => filterAccountsFunc(parseFloat(k)));
+        
+        const orgSheet = kontonSpreadsheet.getSheets()[0];
         const orgRows = orgSheet.getDataRange().getValues();
         const orgCols = toObject(orgRows[0], (v, i) => [v, i]);
-        const aaaa = orgRows
+        const rowIndexAndAccount = orgRows
             .map((r, i) => ({ rowIndex: i, account: parseFloat(r[columns.Konto]) }))
             .filter(o => !isNaN(o.account));
-        const accountIdToRowIndex = toObject(aaaa, (v, i) => [v.account, v.rowIndex]);
+        const accountIdToRowIndex = toObject(rowIndexAndAccount, (v, i) => [v.account, v.rowIndex]);
         const missingAccounts = Object.keys(aggregated).filter(k => !accountIdToRowIndex[k])
         if (missingAccounts.length) {
             throw "Missing account translations: " + missingAccounts.join(", ");
         }
 
-        const colForBudget = orgCols["Budget 2020"]; //TODO: find automatically
+        const colForBudget = orgCols[kontonBudgetColName];
         Object.keys(aggregated).forEach(accountId => {
             const rIndex = accountIdToRowIndex[accountId];
             const cell = orgSheet.getRange(rIndex + 1, colForBudget + 1).getCell(1, 1);
@@ -103,7 +104,7 @@ export class Budgeteer {
         });
         //Set a red 0 in cells that don't have aggregate value but a person responsible:
         const unusedAccounts = Object.keys(accountIdToRowIndex).filter(account => aggregated[account] == null);
-        Logger.log(unusedAccounts);
+        // Logger.log(unusedAccounts);
         unusedAccounts.forEach(account => {
             var rIndex = accountIdToRowIndex[account];
             if (orgRows[rIndex][orgCols.Ansvar].length > 0) {
@@ -113,10 +114,10 @@ export class Budgeteer {
             }
         });
 
-        let summaryRows = Budgeteer.summarizeBudgetRows(filtered);
+        let summaryRows = Budgeteer.summarizeBudgetRows(budgetRows);
         const tmpStrangeTypeError = <(string | number)[][]>[[], [], ["Account series summaries"]];
         summaryRows = tmpStrangeTypeError.concat(summaryRows);
-        const collectedTargetSheet = SheetUtils.getOrCreateSheet("Collected", true, SpreadsheetAppUtils.getActiveSpreadsheet());
+        const collectedTargetSheet = SheetUtils.getOrCreateSheet("Collected", true, kontonSpreadsheet);
         SheetUtils.fillSheet(collectedTargetSheet, budgetRows.concat(summaryRows), 0, 0);
     }
 
@@ -152,10 +153,6 @@ export class Budgeteer {
 
         allRows = allRows.sort((a, b) => a[0] - b[0]);
         return allRows;
-    }
-
-    static filterCollectedBudgetRows(budgetRows: any[][]) {
-        return budgetRows.filter(row => !isNaN(parseFloat(row[0])) && !isNaN(parseFloat(row[2])));
     }
 
     static summarizeBudgetRows(budgetRows: any[][]) {

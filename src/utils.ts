@@ -67,6 +67,11 @@ export interface KeyValueMap<T> {
   [key: string]: T;
 }
 
+export function removeObjectKeys(obj: any, filter: (key: string) => boolean): any {
+  const result: any = {};
+  Object.keys(obj).forEach(k => { if (filter(k)) result[k] = obj[k]; })
+  return result;
+}
 export function toObject(
   list: any[],
   funcKeyAndValue?: (value: any, index: number, arr: any[]) => [string, any]
