@@ -61,6 +61,7 @@ export interface ISheet {
   setName(name: string): void;
   clear(): void;
   getFilter(): ISheetFilter;
+  getName(): string;
 
   newChart(): IChart;
   removeChart(chart: IChart): void;

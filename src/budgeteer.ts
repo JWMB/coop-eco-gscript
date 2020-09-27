@@ -194,15 +194,17 @@ export class Budgeteer {
             let budget = parseFloat(row[budgetColumnIndex]);
             let actual = parseFloat(row[actualColumnIndex]);
 
+            const cell = kontonBudgetSheet.getRange(rIndex + 1, relativeColumnIndex + 1).getCell(1, 1);
+
             budget = isNaN(budget) ? 0 : budget;
             actual = isNaN(actual) ? 0 : actual;
-            if (budget == 0 && actual == 0) continue;
-
-            const rel = budget == 0 ? 9 : actual / budget;
-
-            const cell = kontonBudgetSheet.getRange(rIndex + 1, relativeColumnIndex + 1).getCell(1, 1);
-            cell.setValue(budget == 0 ? 'MAX' : Math.round(100 * rel));
-            cell.setFontColor(rel > 1 ? '#aa0000' : "#00aa00");
+            if (budget == 0 && actual == 0) {
+                cell.setValue('');
+            } else {
+                const rel = budget == 0 ? 9 : actual / budget;
+                cell.setValue(budget == 0 ? 'MAX' : Math.round(100 * rel));
+                cell.setFontColor(rel > 1 ? '#aa0000' : "#00aa00");
+            }
         }
     }
 
@@ -263,8 +265,7 @@ export class Budgeteer {
         folderForSpreadsheets: string,
         filterResponsibilities?: string[])
     {
-        const ss = transactionSpreadsheet;
-        const txSheet = ss.getSheets()[0];
+        const txSheet = transactionSpreadsheet.getSheets()[0];
         let txData = txSheet.getDataRange().getValues();
 
         let txColumns = SheetUtils.getHeaderColumnsAsObject(txSheet);
@@ -278,10 +279,13 @@ export class Budgeteer {
         txColumns = toObject(txHeaderRow, (cell, i) => [cell, i]); //Re-index columns
         txData = txData.slice(1);
 
-        const sheet = kontonSpreadsheet.getSheets()[0]; //SpreadsheetAppUtils.MySpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
-        const columns = SheetUtils.getHeaderColumnsAsObject(sheet);
+        const kontonSheet = kontonSpreadsheet.getSheets()[0];
+        const columns = SheetUtils.getHeaderColumnsAsObject(kontonSheet);
 
-        const data = sheet.getDataRange().getValues();
+        const sheetCollectedLast = kontonSpreadsheet.getSheets().filter(s => s.getName().indexOf("Collected") == 0)[0];
+        const dataCollectedLast: any[][] = !!sheetCollectedLast ? sheetCollectedLast.getDataRange().getValues() : [];
+
+        const data = kontonSheet.getDataRange().getValues();
         const byResponsibility = Budgeteer.getRowsPerResponsibility(data, columns.Ansvar);
 
         for (let role in byResponsibility) {
@@ -331,11 +335,16 @@ export class Budgeteer {
 
             const rxFilter = new RegExp("^(" + accountIds.join("|") + ")")
             const filters = Timeseries.createFilters(txColumns, rxFilter);
-            targetSheet = SheetUtils.getOrCreateSheet("Transaktioner", true, spreadsheet);
-
             const txDataForResp = [txHeaderRow].concat(Budgeteer.applyFilters(txData, filters));
+
+            targetSheet = SheetUtils.getOrCreateSheet("Transaktioner", true, spreadsheet);
             SheetUtils.fillSheet(targetSheet, txDataForResp);
 
+            if (!!dataCollectedLast.length) {
+                const collectedLast = dataCollectedLast.filter(row => accountIds.indexOf(row[columns.Konto]) >= 0);
+                targetSheet = SheetUtils.getOrCreateSheet(sheetCollectedLast.getName(), true, spreadsheet);
+                SheetUtils.fillSheet(targetSheet, [dataCollectedLast[0]].concat(collectedLast));
+            }
             // Budgeteer.createChartSheet(spreadsheet, targetSheet, accountIds);
         }
     }
@@ -430,16 +439,5 @@ export class ResultatRakning {
             });
         }
         return result;
-        // data.map(row => ({account: rxStartWithAccount.exec(row[0])?.toString(), row: row}))
-        //     .filter(row => !!row.account).map(row => { account:});
-        // const cols = "Utfall ack	Budget ack	Utfall fgå ack".split("\t");
-        // const cc = { "Utfall ack": "current", "Budget ack": "budget", "Utfall fgå ack": "previous"};
-        // const accountToBudget = toObject(data, row => {
-        //     const props = toObject(cols.map(c => [c, parseFloat(row[columns[c]])]));
-        //     // return [row[0], props];
-        //     const val = parseFloat(row[columns['Budget ack']]);
-        //     return [(rxStartWithAccount.exec(row[0]) || "").toString(), isNaN(val) ? 0 : val];
-        // });
-        // return accountToBudget;
     }
 }
