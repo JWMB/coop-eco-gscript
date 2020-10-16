@@ -96,7 +96,10 @@ describe('Budget', () => {
 
         Budgeteer.fillResponsibilitySpreadsheets(
             SpreadsheetAppUtils.openByName("Konton"), 
-            SpreadsheetAppUtils.openByName("Transaktioner"), budgetFolderName); //, ["Utemiljö", "Förvaltarkontakt", "Ordförande"]);
+            SpreadsheetAppUtils.openByName("Transaktioner"), 
+            budgetFolderName,
+            SpreadsheetAppUtils.openByName("Konton")
+        ); //, ["Utemiljö", "Förvaltarkontakt", "Ordförande"]);
 
         const files = DriveUtils.getFilesInFolderName(budgetFolderName);
         expect(files.map(f => f.getName())).toStrictEqual(
@@ -107,7 +110,7 @@ describe('Budget', () => {
 
         const budgetUte = SpreadsheetAppUtils.openByName("Budget Utemiljö");
         const totalsRow = budgetUte.getSheets()[0].getDataRange().getValues().filter(r => r[0] == "TOTAL")[0];
-        expect(totalsRow).toStrictEqual([ 'TOTAL', -237254, -166474, 0, -228000, 182, -315500, '', '', '' ]);
+        expect(totalsRow).toStrictEqual([ 'TOTAL', -237254, -166474, 0, -169500, -228000, 182, -315500, '', '', '' ]);
 
         const row2 = budgetUte.getSheets()[1].getDataRange().getValues()[1];
         expect(row2.slice(0,4)).toStrictEqual(["2020-07-20 0:00:00", "",  -17796, "TrädgårdsHuset"]);

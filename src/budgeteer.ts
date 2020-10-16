@@ -1,6 +1,6 @@
 import { ISheet, Charts, DriveUtils, SpreadsheetApp, ISpreadsheet, SheetUtils, Logger, ISheetRange, SpreadsheetAppUtils } from './utils-google'
 import { KeyValueMap, parseFloatOrAny, parseFloatOrDefault, removeObjectKeys, toObject } from './utils'
-import { Aggregation, AggregationDefinition } from './aggregation'
+import { Aggregation, AggregationDefinition, AggregationPresets } from './aggregation'
 import { Timeseries } from './timeseries'
 
 export class Budgeteer {
@@ -263,6 +263,7 @@ export class Budgeteer {
         kontonSpreadsheet: ISpreadsheet, 
         transactionSpreadsheet: ISpreadsheet, 
         folderForSpreadsheets: string,
+        previousKontonSpreadsheet?: ISpreadsheet,
         filterResponsibilities?: string[])
     {
         const txSheet = transactionSpreadsheet.getSheets()[0];
@@ -280,13 +281,41 @@ export class Budgeteer {
         txData = txData.slice(1);
 
         const kontonSheet = kontonSpreadsheet.getSheets()[0];
-        const columns = SheetUtils.getHeaderColumnsAsObject(kontonSheet);
+        let columns = SheetUtils.getHeaderColumnsAsObject(kontonSheet);
+        const kontonData = kontonSheet.getDataRange().getValues();
 
-        const sheetCollectedLast = kontonSpreadsheet.getSheets().filter(s => s.getName().indexOf("Collected") == 0)[0];
-        const dataCollectedLast: any[][] = !!sheetCollectedLast ? sheetCollectedLast.getDataRange().getValues() : [];
+        let dataCollectedLast: any[][] = [];
+        let sheetCollectedLast: ISheet | null = null;
+        if (!!previousKontonSpreadsheet) {
+            // Data from previous year's collected role inputs
+            const collectedPrefix = "Collected ";
+            const lastCollectedYear = previousKontonSpreadsheet.getSheets().map(s => s.getName())
+                .filter(s => s.indexOf(collectedPrefix) == 0)
+                .map(s => parseFloat(s.substr(collectedPrefix.length)))
+                .sort((a, b) => b - a)[0];
+            sheetCollectedLast = previousKontonSpreadsheet.getSheetByName(`${collectedPrefix}${lastCollectedYear}`);
+            dataCollectedLast = !!sheetCollectedLast ? sheetCollectedLast.getDataRange().getValues() : [];
+            const colsCollectedLast = SheetUtils.getHeaderColumnsAsObject(dataCollectedLast);
+            const collectedSums = AggregationPresets.Summarize(dataCollectedLast.slice(1), colsCollectedLast.Konto, colsCollectedLast.Summa, v => -Math.abs(v));
 
-        const data = kontonSheet.getDataRange().getValues();
-        const byResponsibility = Budgeteer.getRowsPerResponsibility(data, columns.Ansvar);
+            {
+                // Add column with collected totals - b/c we're using accounts not available through SBC
+                const budgetColIndex = kontonData[0].indexOf(`Budget ${lastCollectedYear}`);
+                if (budgetColIndex >= 0) {
+                    kontonData[0].splice(budgetColIndex, 0, `${collectedPrefix}${lastCollectedYear}`);
+                    for (let i = 1; i < kontonData.length; i++) {
+                        const row = kontonData[i];
+                        const accountId = row[columns.Konto];
+                        const val = collectedSums[accountId] || "";
+                        // if (val != "") console.log("hso", accountId, val);
+                        row.splice(budgetColIndex, 0, val);
+                    }
+                    columns = SheetUtils.getHeaderColumnsAsObject(kontonData);
+                }
+            }
+        }
+
+        const byResponsibility = Budgeteer.getRowsPerResponsibility(kontonData, columns.Ansvar);
 
         for (let role in byResponsibility) {
             if (filterResponsibilities && filterResponsibilities.indexOf(role) < 0) { 
@@ -319,11 +348,11 @@ export class Budgeteer {
             byResponsibility[role].forEach(row => {
                 Object.keys(colsToSummarize).forEach(k => colsToSummarize[k] += parseFloatOrDefault(row[columns[k]]));
             });
-            const sumsRow = data[0].map(v => typeof colsToSummarize[v] == "number" ? colsToSummarize[v] : "");
+            const sumsRow = kontonData[0].map(v => typeof colsToSummarize[v] == "number" ? colsToSummarize[v] : "");
             sumsRow[columns.Konto] = "TOTAL";
             
             // Join account total rows with used-data rows and fill sheet:
-            let rowsWithHeader = [data[0]].concat(byResponsibility[role]).concat([sumsRow]);
+            let rowsWithHeader = [kontonData[0]].concat(byResponsibility[role]).concat([sumsRow]);
             rowsWithHeader = rowsWithHeader.concat(additionalRows);
 
             targetSheet.getDataRange().clearContent();
@@ -340,7 +369,7 @@ export class Budgeteer {
             targetSheet = SheetUtils.getOrCreateSheet("Transaktioner", true, spreadsheet);
             SheetUtils.fillSheet(targetSheet, txDataForResp);
 
-            if (!!dataCollectedLast.length) {
+            if (!!dataCollectedLast.length && !!sheetCollectedLast) {
                 const collectedLast = dataCollectedLast.filter(row => accountIds.indexOf(row[columns.Konto]) >= 0);
                 targetSheet = SheetUtils.getOrCreateSheet(sheetCollectedLast.getName(), true, spreadsheet);
                 SheetUtils.fillSheet(targetSheet, [dataCollectedLast[0]].concat(collectedLast));
