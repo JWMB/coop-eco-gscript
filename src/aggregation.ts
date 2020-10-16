@@ -1,4 +1,4 @@
-import { KeyValueMap } from './utils';
+import { KeyValueMap, parseFloatOrAny, parseFloatOrDefault } from './utils';
 
 export interface GroupingDefinition {
   name: string;
@@ -10,6 +10,26 @@ export interface AggregationDefinition {
   name: string;
   col: number;
   func(arg1: any, arg2: any): any;
+}
+
+export interface AggregationPresetParams<T> {
+  colIndex: number;
+  aggregateName?: string;
+  valueFunc?: (v:T) => T;
+}
+
+export class AggregationPresets {
+  static SumDef(params: AggregationPresetParams<number>): AggregationDefinition { // colIndex: number, aggregateName: string = "Sum"): AggregationDefinition {
+    return {
+       col: params.colIndex, 
+       name: params.aggregateName || "Sum", 
+       func: (v, p) => (((!!params.valueFunc) ?  params.valueFunc(parseFloatOrDefault(v, 0)) : parseFloatOrDefault(v, 0)) || 0) + (p || 0) };
+  }
+
+  static Summarize(data: any[][], groupByColIndex: number, sumByColIndex: number, valueFunc?: (v: number) => number): KeyValueMap<any> {
+    return Aggregation.aggregateRows(data, [{ col: groupByColIndex, name: 'Group', func: v => v },], 
+      AggregationPresets.SumDef({ colIndex: sumByColIndex, valueFunc: valueFunc }), false);
+  }
 }
 
 export class Aggregation {
