@@ -218,19 +218,17 @@ export class Budgeteer {
         Object.keys(rr2kontonCols).forEach(k => { if (rr2kontonCols[k] === undefined) delete rr2kontonCols[k]; })
         const rrByAccountId = ResultatRakning.getRowsByAccountId(exportedResultatRakning);
         const kontonData = kontonBudgetSheet.getDataRange().getValues();
-        for (let rIndex = 0; rIndex < kontonData.length; rIndex++) {
+        for (let rIndex = 1; rIndex < kontonData.length; rIndex++) {
             const row = kontonData[rIndex];
             const accountId = parseFloatOrDefault(row[columns.Konto]);
-            const fromRR = (accountId > 0 ? rrByAccountId[accountId] : null) || <ResultatRapportRow>{ account: accountId, current: 0, previous: null, budget: null };
-                // const fromRR = rrByAccountId[accountId];
-                // if (!!fromRR) {
-            Object.keys(rr2kontonCols).forEach(k => {
-                const val = (<any>fromRR)[k];
-                const cell = kontonBudgetSheet.getRange(rIndex + 1, rr2kontonCols[k] + 1).getCell(1, 1);
-                cell.setValue(val == null ? "" : val); //Overwrite with empty string when null
-            });
-            //     }
-            // }
+            if (accountId > 0) {
+                const fromRR = rrByAccountId[accountId] || <ResultatRapportRow>{ account: accountId, current: 0, previous: null, budget: null };
+                Object.keys(rr2kontonCols).forEach(k => {
+                    const val = (<any>fromRR)[k];
+                    const cell = kontonBudgetSheet.getRange(rIndex + 1, rr2kontonCols[k] + 1).getCell(1, 1);
+                    cell.setValue(val == null ? "" : val); //Overwrite with empty string when null
+                });
+            }
         }
     }
 

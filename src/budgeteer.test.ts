@@ -53,6 +53,9 @@ describe('Budget', () => {
         const kontoSheet = SpreadsheetAppUtils.openSheet("Konton");
         Budgeteer.fillFromResultatRakning(kontoSheet, SpreadsheetAppUtils.openSheet("190111 Resultaträkning"), 2020);
         const kontoData = kontoSheet.getDataRange().getValues();
+
+        expect(kontoData[0].slice(0, 7)).toStrictEqual(["Konto", 2018, 2019, 2020, "Budget 2020", "Rel 2020", "Budget 2021"]); //	SBC Konto
+
         const kontoRow41100 = kontoData.filter(r => r[0].toString().indexOf("41100") == 0)[0];
         expect(kontoRow41100.slice(2, 5)).toStrictEqual([9994, 9992, 9993]);
 
