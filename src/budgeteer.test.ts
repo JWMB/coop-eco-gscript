@@ -54,9 +54,11 @@ describe('Budget', () => {
         Budgeteer.fillFromResultatRakning(kontoSheet, SpreadsheetAppUtils.openSheet("190111 Resultaträkning"), 2020);
         const kontoData = kontoSheet.getDataRange().getValues();
         const kontoRow41100 = kontoData.filter(r => r[0].toString().indexOf("41100") == 0)[0];
-        expect(kontoRow41100[2]).toBe(9994);
-        expect(kontoRow41100[3]).toBe(9992);
-        expect(kontoRow41100[4]).toBe(9993);
+        expect(kontoRow41100.slice(2, 5)).toStrictEqual([9994, 9992, 9993]);
+
+        // Overwrite with defaults when no data in resultaträkning:
+        const kontoRow41160 = kontoData.filter(r => r[0].toString().indexOf("41160") == 0)[0];
+        expect(kontoRow41160.slice(2, 5)).toStrictEqual(["", 0, ""]);
     });
 
     it('konton_budget_relatives', () => {
@@ -98,7 +100,7 @@ describe('Budget', () => {
             SpreadsheetAppUtils.openByName("Konton"), 
             SpreadsheetAppUtils.openByName("Transaktioner"), 
             budgetFolderName,
-            SpreadsheetAppUtils.openByName("Konton")
+            SpreadsheetAppUtils.openSheet("Konton", null, "Collected 2020")
         ); //, ["Utemiljö", "Förvaltarkontakt", "Ordförande"]);
 
         const files = DriveUtils.getFilesInFolderName(budgetFolderName);
@@ -109,7 +111,9 @@ describe('Budget', () => {
         expect(spreads.map(s => s.getSheets().length)).toStrictEqual(spreads.map(s => 3));
 
         const budgetUte = SpreadsheetAppUtils.openByName("Budget Utemiljö");
-        const totalsRow = budgetUte.getSheets()[0].getDataRange().getValues().filter(r => r[0] == "TOTAL")[0];
+        const budgetUteData = budgetUte.getSheets()[0].getDataRange().getValues();
+        expect(budgetUteData[0]).toStrictEqual(["Konto", 2018, 2019, 2020, "Collected 2020", "Budget 2020", "Rel 2020", "Budget 2021", "Namn", "Ansvar", "Kommentar"]);
+        const totalsRow = budgetUteData.filter(r => r[0] == "TOTAL")[0];
         expect(totalsRow).toStrictEqual([ 'TOTAL', -237254, -166474, 0, -169500, -228000, 182, -315500, '', '', '' ]);
 
         const row2 = budgetUte.getSheets()[1].getDataRange().getValues()[1];

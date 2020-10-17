@@ -2,6 +2,7 @@ import { ISheet, Charts, DriveUtils, SpreadsheetApp, ISpreadsheet, SheetUtils, L
 import { KeyValueMap, parseFloatOrAny, parseFloatOrDefault, removeObjectKeys, toObject } from './utils'
 import { Aggregation, AggregationDefinition, AggregationPresets } from './aggregation'
 import { Timeseries } from './timeseries'
+import { previousCollected } from './budgeteer.testdata';
 
 export class Budgeteer {
     /**
@@ -211,26 +212,25 @@ export class Budgeteer {
     static fillFromResultatRakning(kontonBudgetSheet: ISheet, exportedResultatRakning: ISheet, budgetYear: number) {
         const columns = SheetUtils.getHeaderColumnsAsObject(kontonBudgetSheet);
         //2018	2019	2020	Budget 2020	Rel 2020
-        //const year = new Date().getFullYear();
         const columnBudgetName = `Budget ${budgetYear}`;
         const rr2kontonCols: any = { budget: columns[columnBudgetName], current: columns[`${budgetYear}`], previous: columns[`${budgetYear - 1}`]};
         // remove if missing columns
         Object.keys(rr2kontonCols).forEach(k => { if (rr2kontonCols[k] === undefined) delete rr2kontonCols[k]; })
         const rrByAccountId = ResultatRakning.getRowsByAccountId(exportedResultatRakning);
-        const data = kontonBudgetSheet.getDataRange().getValues();
-        for (let rIndex = 0; rIndex < data.length; rIndex++) {
-            const row = data[rIndex];
-            const accountId = parseFloat(row[columns.Konto]);
-            if (accountId > 0) {
-                const fromRR = rrByAccountId[accountId];
-                if (!!rrByAccountId[accountId]) {
-                    Object.keys(rr2kontonCols).forEach(k => {
-                        const val = (<any>rrByAccountId[accountId])[k];
-                        const cell = kontonBudgetSheet.getRange(rIndex + 1, rr2kontonCols[k] + 1).getCell(1, 1);
-                        cell.setValue(val == null ? "" : val); //Overwrite with empty string when null
-                    });
-                }
-            }
+        const kontonData = kontonBudgetSheet.getDataRange().getValues();
+        for (let rIndex = 0; rIndex < kontonData.length; rIndex++) {
+            const row = kontonData[rIndex];
+            const accountId = parseFloatOrDefault(row[columns.Konto]);
+            const fromRR = (accountId > 0 ? rrByAccountId[accountId] : null) || <ResultatRapportRow>{ account: accountId, current: 0, previous: null, budget: null };
+                // const fromRR = rrByAccountId[accountId];
+                // if (!!fromRR) {
+            Object.keys(rr2kontonCols).forEach(k => {
+                const val = (<any>fromRR)[k];
+                const cell = kontonBudgetSheet.getRange(rIndex + 1, rr2kontonCols[k] + 1).getCell(1, 1);
+                cell.setValue(val == null ? "" : val); //Overwrite with empty string when null
+            });
+            //     }
+            // }
         }
     }
 
@@ -263,7 +263,7 @@ export class Budgeteer {
         kontonSpreadsheet: ISpreadsheet, 
         transactionSpreadsheet: ISpreadsheet, 
         folderForSpreadsheets: string,
-        previousKontonSpreadsheet?: ISpreadsheet,
+        previousCollectedSheet?: ISheet,
         filterResponsibilities?: string[])
     {
         const txSheet = transactionSpreadsheet.getSheets()[0];
@@ -285,24 +285,32 @@ export class Budgeteer {
         const kontonData = kontonSheet.getDataRange().getValues();
 
         let dataCollectedLast: any[][] = [];
-        let sheetCollectedLast: ISheet | null = null;
-        if (!!previousKontonSpreadsheet) {
+        //let previousCollectedSheet: ISheet | null = null;
+        if (!!previousCollectedSheet) {
+            function fGetHighestPrefixedName(columnNames: any[], prefix: string) {
+                const highest = (prefix.length ? columnNames.filter(n => n.toString().indexOf(prefix) === 0) : columnNames)
+                    .map(n => parseFloat(n.toString().substr(prefix.length)))
+                    .filter(n => !isNaN(n))
+                    .sort((a, b) => b - a)[0];
+                return `${prefix}${highest}`;
+            }
             // Data from previous year's collected role inputs
-            const collectedPrefix = "Collected ";
-            const lastCollectedYear = previousKontonSpreadsheet.getSheets().map(s => s.getName())
-                .filter(s => s.indexOf(collectedPrefix) == 0)
-                .map(s => parseFloat(s.substr(collectedPrefix.length)))
-                .sort((a, b) => b - a)[0];
-            sheetCollectedLast = previousKontonSpreadsheet.getSheetByName(`${collectedPrefix}${lastCollectedYear}`);
-            dataCollectedLast = !!sheetCollectedLast ? sheetCollectedLast.getDataRange().getValues() : [];
+            // const collectedPrefix = "Collected ";
+            // const lastCollectedYear = previousKontonSpreadsheet.getSheets().map(s => s.getName())
+            //     .filter(s => s.indexOf(collectedPrefix) == 0)
+            //     .map(s => parseFloat(s.substr(collectedPrefix.length)))
+            //     .sort((a, b) => b - a)[0];
+            // sheetCollectedLast = previousKontonSpreadsheet.getSheetByName(`${collectedPrefix}${lastCollectedYear}`);
+            dataCollectedLast = !!previousCollectedSheet ? previousCollectedSheet.getDataRange().getValues() : [];
             const colsCollectedLast = SheetUtils.getHeaderColumnsAsObject(dataCollectedLast);
             const collectedSums = AggregationPresets.Summarize(dataCollectedLast.slice(1), colsCollectedLast.Konto, colsCollectedLast.Summa, v => -Math.abs(v));
 
             {
                 // Add column with collected totals - b/c we're using accounts not available through SBC
-                const budgetColIndex = kontonData[0].indexOf(`Budget ${lastCollectedYear}`);
-                if (budgetColIndex >= 0) {
-                    kontonData[0].splice(budgetColIndex, 0, `${collectedPrefix}${lastCollectedYear}`);
+                const latestBudgetCol = fGetHighestPrefixedName(kontonData[0], "");
+                const budgetColIndex = kontonData[0].indexOf(parseFloat(latestBudgetCol)) + 1; // +1: put it after the corresponding year column
+                if (budgetColIndex >= 1) {
+                    kontonData[0].splice(budgetColIndex, 0, previousCollectedSheet.getName()); //`${collectedPrefix}${lastCollectedYear}`);
                     for (let i = 1; i < kontonData.length; i++) {
                         const row = kontonData[i];
                         const accountId = row[columns.Konto];
@@ -369,9 +377,9 @@ export class Budgeteer {
             targetSheet = SheetUtils.getOrCreateSheet("Transaktioner", true, spreadsheet);
             SheetUtils.fillSheet(targetSheet, txDataForResp);
 
-            if (!!dataCollectedLast.length && !!sheetCollectedLast) {
+            if (!!dataCollectedLast.length && !!previousCollectedSheet) {
                 const collectedLast = dataCollectedLast.filter(row => accountIds.indexOf(row[columns.Konto]) >= 0);
-                targetSheet = SheetUtils.getOrCreateSheet(sheetCollectedLast.getName(), true, spreadsheet);
+                targetSheet = SheetUtils.getOrCreateSheet(previousCollectedSheet.getName(), true, spreadsheet);
                 SheetUtils.fillSheet(targetSheet, [dataCollectedLast[0]].concat(collectedLast));
             }
             // Budgeteer.createChartSheet(spreadsheet, targetSheet, accountIds);
