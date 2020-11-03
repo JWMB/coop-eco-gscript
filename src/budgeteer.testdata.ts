@@ -5,7 +5,7 @@ export const someonesBudget = `Konto	2019	2020	Budget 2020	Rel 2020	Namn	Ansvar	
 								
 ---BUDGET---	Ändra ej denna och nästa rad, används för automatisk inläsning							
 Konto	Datum	Summa	Mottagare	Kommentar				
-45640	2020-06-01	1000000		Etapp 1/4 - Kvalificerad gissning tillsammans med kvadratmeterpriser vi fått av JE mark och gamla offerter för asfaltering av hela området som ger den siffran				
+45640	2020-06-01	1 000 000		Etapp 1/4 - Kvalificerad gissning tillsammans med kvadratmeterpriser vi fått av JE mark och gamla offerter för asfaltering av hela området som ger den siffran				
 45613	2020-06-01	20000		Besiktiga murar				
 45613	2020-06-01	0		Inte än: 220000 (från underhållsplan)				`;
 

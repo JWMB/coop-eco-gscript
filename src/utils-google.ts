@@ -4,7 +4,7 @@ import { toObject, KeyValueMap, sleep } from './utils';
 export var SpreadsheetApp: ISpreadsheetApp;
 export var DriveApp: IDriveApp;
 export var Charts: ICharts;
-export class Logger {
+export class Logging {
   static log(val: any): void {
     console.log(val);
   }
@@ -315,15 +315,15 @@ export class SheetUtils {
         var rxMatch = /\"(.+)\"/.exec(critVals[0]);
         if (rxMatch && rxMatch.length >= 2) {
           return new RegExp(rxMatch[1]);
-        } else Logger.log('filter criteria regex no match' + critVals);
+        } else Logging.log('filter criteria regex no match' + critVals);
       } else
-        Logger.log(
+        Logging.log(
           'filter criteria not regex: ' +
             critVals +
             ' ' +
             critVals.indexOf('REGEXMATCH')
         );
-    } else Logger.log('filter criteria: N/A');
+    } else Logging.log('filter criteria: N/A');
     return null;
   }
 

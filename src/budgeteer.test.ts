@@ -124,18 +124,28 @@ describe('Budget', () => {
 
         expect(budgetUte.getSheets()[2].getDataRange().getValues().length).toBe(8);
 
-        
-        const data = Budgeteer.collectFromResponsibilitySheets(budgetFolderName);
-        // all roles except Utemiljö (b/c specifically defined document) should only have defaults (11110 Firma AB etc)
-        const defaultRow = Budgeteer.budgetDefaultResponsibility[1];
-        const defaultRows = data.filter(r => r[0] == defaultRow[0]);
-        expect(defaultRows.length).toBe(files.length - 1);
-
-        const utemiljoRows = data.slice(1).filter(r => r[0] != defaultRow[0]);
-        expect(utemiljoRows.length).toBe(3);
 
         const kontonSSheet = SpreadsheetAppUtils.openByName("Konton");
-        Budgeteer.runCollect(kontonSSheet, "Budget 2020", budgetFolderName, account => account != 11100);
+
+        const collectedBudgets = Budgeteer.collectFromResponsibilitySheets(budgetFolderName);
+        expect(collectedBudgets[0][0]).toBe("Konto");
+        console.log(collectedBudgets);
+        // all roles except Utemiljö (b/c specifically defined document) should only have defaults (11110 Firma AB etc)
+        const defaultRow = Budgeteer.budgetDefaultResponsibility[1];
+        const defaultRows = collectedBudgets.filter(r => r[0] == defaultRow[0]);
+        expect(defaultRows.length).toBe(files.length - 1);
+
+        Budgeteer.writeToCollectedSheet(collectedBudgets, kontonSSheet)
+        const collectedRows = kontonSSheet.getSheetByName("Collected").getDataRange().getValues();
+        // console.log(collectedRows);
+        expect(collectedRows[0].length).toBe(6);
+
+        const utemiljoRows = collectedBudgets.slice(1).filter(r => r[0] != defaultRow[0]);
+        expect(utemiljoRows.length).toBe(3);
+
+        expect(() => Budgeteer.updateKontonSheet(collectedBudgets, kontonSSheet, "Budget 2020")).toThrow();
+
+        Budgeteer.updateKontonSheet(collectedBudgets, kontonSSheet, "Budget 2020", account => account != 11100);
         const filledSheet = kontonSSheet.getSheets()[0].getDataRange().getValues();
         expect(filledSheet[1][0]).toBe(45613);
         expect(filledSheet[1][4]).toBe(-20000);

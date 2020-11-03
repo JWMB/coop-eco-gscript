@@ -1,6 +1,6 @@
 //import 'gscript-mocks.ts';
 import { DateUtils, toObject, KeyValueMap } from './utils';
-import { SheetUtils, SpreadsheetApp, ISheet, Logger } from './utils-google';
+import { SheetUtils, SpreadsheetApp, ISheet, Logging } from './utils-google';
 import { Prognoser, createPrognosis } from './prognoser';
 import { Aggregation } from './aggregation';
 
@@ -200,7 +200,7 @@ export class Timeseries {
       data.concat(applyFilters(dataToConcat));
 
     if (numYearsLookbackAvg > 0) {
-      Logger.log('prognosis started');
+      Logging.log('prognosis started');
       var added = createPrognosis(
         data,
         columns,
@@ -211,7 +211,7 @@ export class Timeseries {
       data = funcFilterAndConcat(added);
 
       if (sheetPrognosisSpec) {
-        Logger.log('prognosis modification started');
+        Logging.log('prognosis modification started');
         var progger = new Prognoser();
         var progcolumns = {
           Date: columns.Date,
@@ -245,7 +245,7 @@ export class Timeseries {
     }
 
     //Perform aggregation:
-    Logger.log('Aggregation started');
+    Logging.log('Aggregation started');
     var groupingDefs = [
       {
         col: columns.Date,
@@ -292,7 +292,7 @@ export class Timeseries {
     //     return list;
     // });
 
-    Logger.log('Create per-year table');
+    Logging.log('Create per-year table');
     //Create table with one row per day in year, and one column per year with accumulated values
     var sortedYears = Object.keys(byYear).sort();
     var inYear = [['Date'].concat(sortedYears)];

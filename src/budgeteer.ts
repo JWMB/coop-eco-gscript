@@ -1,4 +1,4 @@
-import { ISheet, Charts, DriveUtils, SpreadsheetApp, ISpreadsheet, SheetUtils, Logger, ISheetRange, SpreadsheetAppUtils } from './utils-google'
+import { ISheet, Charts, DriveUtils, SpreadsheetApp, ISpreadsheet, SheetUtils, Logging, ISheetRange, SpreadsheetAppUtils } from './utils-google'
 import { KeyValueMap, parseFloatOrAny, parseFloatOrDefault, removeObjectKeys, toObject } from './utils'
 import { Aggregation, AggregationDefinition, AggregationPresets } from './aggregation'
 import { Timeseries } from './timeseries'
@@ -40,7 +40,7 @@ export class Budgeteer {
         years.forEach(year => {
             const byAccount = aggregated[year];
             if (!byAccount) {
-                Logger.log("No aggregated data for year " + year);
+                Logging.log("No aggregated data for year " + year);
                 return;
             }
 
@@ -69,57 +69,74 @@ export class Budgeteer {
         return result;
     }
 
-    static runCollect(kontonSpreadsheet: ISpreadsheet, kontonBudgetColName: string, budgetFolder: string, filterAccountsFunc: (account: number) => boolean = a => true) {
-        let budgetRows = Budgeteer.collectFromResponsibilitySheets(budgetFolder);
-        //const filtered = budgetRows.filter(row => !isNaN(parseFloat(row[0])) && !isNaN(parseFloat(row[2])));
+    static writeToCollectedSheet(budgetRows: any[][], kontonSpreadsheet: ISpreadsheet, kontonCollectedSheetName: string = "Collected") {
+        const columns = toObject(budgetRows[0], (v, i) => [v, i]);
+        if (typeof columns.Konto !== "number") throw `Incorrect format budgetRows: ${JSON.stringify(columns)}`;
+        budgetRows = budgetRows.slice(1);
 
+        let summaryRows = Budgeteer.summarizeBudgetRows(budgetRows);
+        budgetRows.filter(r => parseFloatOrDefault(r[columns.Konto], 0) === 0)
+            .forEach(r => r[columns.Konto] = "MISSING ACCOUNT");
+
+        const tmpStrangeTypeError = <(string | number)[][]>[[], [], ["Account series summaries"]];
+        summaryRows = tmpStrangeTypeError.concat(summaryRows);
+        const collectedTargetSheet = SheetUtils.getOrCreateSheet(kontonCollectedSheetName, true, kontonSpreadsheet);
+        SheetUtils.fillSheet(collectedTargetSheet, budgetRows.concat(summaryRows), 0, 0);
+    }
+
+    static updateKontonSheet(budgetRows: any[][], kontonSpreadsheet: ISpreadsheet, kontonBudgetColName: string, filterAccountsFunc: (account: number) => boolean = a => true) {
         // transfer to main sheet
         const columns = toObject(budgetRows[0], (v, i) => [v, i]);
-        budgetRows = budgetRows.slice(1);
+        budgetRows = budgetRows.slice(1).filter(r => filterAccountsFunc(parseFloatOrDefault(r[columns.Konto], 0)));
+
         //Konto	Datum	Summa
-        const accountTranslation = new Map<number, number>([[41180, 41170], [46401, 46400], [46430, 46400]]);
+        // const accountTranslation = new Map<number, number>([[41180, 41170], [46401, 46400], [46430, 46400]]);
         // const accountTranslation = { 41180: 41170, 46401: 46400, 46430: 46400 };
         const aggregateDef: AggregationDefinition = { col: columns.Summa, name: 'Sum', func: (v, p) => (parseInt(v, 10) || 0) + (p || 0) };
-        const aggregated = removeObjectKeys(
+        const sumByAccount = removeObjectKeys(
             Aggregation.aggregateRows(budgetRows, [
-                { col: columns.Konto, name: 'Konto', func: v => <string | number>(accountTranslation.get(parseFloat(v.toString())) || v) },
+                { col: columns.Konto, name: 'Konto', func: v => typeof v === "number" ? v : parseFloat(v) },
+                //{ col: columns.Konto, name: 'Konto', func: v => <string | number>(accountTranslation.get(parseFloat(v.toString())) || v) },
             ], aggregateDef, false), k => filterAccountsFunc(parseFloat(k)));
-        
-        const orgSheet = kontonSpreadsheet.getSheets()[0];
-        const orgRows = orgSheet.getDataRange().getValues();
-        const orgCols = toObject(orgRows[0], (v, i) => [v, i]);
-        const rowIndexAndAccount = orgRows
+
+
+        const kontonSheet = kontonSpreadsheet.getSheets()[0];
+        const kontonRows = kontonSheet.getDataRange().getValues();
+        const kontonCols = toObject(kontonRows[0], (v, i) => [v, i]);
+        const rowIndexAndAccount = kontonRows
             .map((r, i) => ({ rowIndex: i, account: parseFloat(r[columns.Konto]) }))
             .filter(o => !isNaN(o.account));
         const accountIdToRowIndex = toObject(rowIndexAndAccount, (v, i) => [v.account, v.rowIndex]);
-        const missingAccounts = Object.keys(aggregated).filter(k => !accountIdToRowIndex[k])
-        if (missingAccounts.length) {
-            throw "Missing account translations: " + missingAccounts.join(", ");
+
+        const rowsWithMissingOrIncorrectAccounts = budgetRows.filter(r => !accountIdToRowIndex[parseFloatOrDefault(r[columns.Konto], 0)]);
+
+        // Remove incorrect/missing sums here (and throw at the end instead)
+        Object.keys(sumByAccount).filter(k => !accountIdToRowIndex[k]).forEach(k => delete sumByAccount[k]);
+    
+        // Write to Konton sheet:
+        {
+            const colForBudget = kontonCols[kontonBudgetColName];
+            Object.keys(sumByAccount).forEach(accountId => {
+                const rIndex = accountIdToRowIndex[accountId];
+                const cell = kontonSheet.getRange(rIndex + 1, colForBudget + 1).getCell(1, 1);
+                cell.setValue(sumByAccount[accountId]);
+            });
+            //Set a red 0 in cells that don't have aggregate value but a person responsible:
+            const unusedAccounts = Object.keys(accountIdToRowIndex).filter(account => sumByAccount[account] == null);
+            unusedAccounts.forEach(account => {
+                var rIndex = accountIdToRowIndex[account];
+                if (kontonRows[rIndex][kontonCols.Ansvar].length > 0) {
+                    var cell = kontonSheet.getRange(rIndex + 1, colForBudget + 1).getCell(1, 1);
+                    cell.setValue("MISSING");
+                    cell.setFontColor('#aa0000');
+                }
+            });
         }
 
-        const colForBudget = orgCols[kontonBudgetColName];
-        Object.keys(aggregated).forEach(accountId => {
-            const rIndex = accountIdToRowIndex[accountId];
-            const cell = orgSheet.getRange(rIndex + 1, colForBudget + 1).getCell(1, 1);
-            cell.setValue(aggregated[accountId]);
-        });
-        //Set a red 0 in cells that don't have aggregate value but a person responsible:
-        const unusedAccounts = Object.keys(accountIdToRowIndex).filter(account => aggregated[account] == null);
-        // Logger.log(unusedAccounts);
-        unusedAccounts.forEach(account => {
-            var rIndex = accountIdToRowIndex[account];
-            if (orgRows[rIndex][orgCols.Ansvar].length > 0) {
-                var cell = orgSheet.getRange(rIndex + 1, colForBudget + 1).getCell(1, 1);
-                cell.setValue("MISSING");
-                cell.setFontColor('#aa0000');
-            }
-        });
-
-        let summaryRows = Budgeteer.summarizeBudgetRows(budgetRows);
-        const tmpStrangeTypeError = <(string | number)[][]>[[], [], ["Account series summaries"]];
-        summaryRows = tmpStrangeTypeError.concat(summaryRows);
-        const collectedTargetSheet = SheetUtils.getOrCreateSheet("Collected", true, kontonSpreadsheet);
-        SheetUtils.fillSheet(collectedTargetSheet, budgetRows.concat(summaryRows), 0, 0);
+        // Throw at the very end so that we write
+        if (rowsWithMissingOrIncorrectAccounts.length) {
+            throw "Missing target accounts: " + rowsWithMissingOrIncorrectAccounts.join("\n");
+        }
     }
 
     static collectFromResponsibilitySheets(budgetFolder: string) {
@@ -128,6 +145,7 @@ export class Budgeteer {
         const filePrefix = "Budget ";
         const files = DriveUtils.getFilesInFolder(folder, file => file.getName().indexOf(filePrefix) == 0);
         const textForUserEditStart = "---BUDGET---";
+        let headerRow: any[] = [];
         let allRows: any[][] = [];
         files.forEach(file => {
             const spreadsheet = SpreadsheetAppUtils.open(file);
@@ -136,24 +154,40 @@ export class Budgeteer {
                 res >= 0 ? res : (row[0] === textForUserEditStart ? index : -1)
                 , -1);
             const responsibility = file.getName().substr(filePrefix.length);
-            const isFirstRole = allRows.length == 0;
-            const rows = sheet.getDataRange().getValues()
-                .slice(foundUserEditRowIndex + 1 + (isFirstRole ? 0 : 1)); //Include header first time
+
+            let rows = sheet.getDataRange().getValues().slice(foundUserEditRowIndex + 1);
+            if (headerRow.length === 0) {
+                headerRow = rows[0];
+            } else {
+                rows = rows.slice(1);
+            }
+
+            rows = rows.filter(r => {
+                    // remove "sum" rows and those with no numerical values
+                    const anyNumericalCell = r.filter(c => parseFloatOrAny(c, null) != null).length > 0;
+                    const firstColIsSum = `${r[0]}`.trim().toLowerCase().indexOf("sum") === 0;
+                    return anyNumericalCell && !firstColIsSum; 
+                }) ;
+
             rows.forEach((r, i) => {
                 // Always treat them as costs regardless of sign
-                if (!!r[2] && !isNaN(parseFloat(r[2])) && parseFloat(r[2]) > 0) {
-                    r[2] = -parseFloat(r[2]);
+                let amount = r[2];
+                if (typeof amount === "string") {
+                    if (amount.trim().length > 0) {
+                        amount = parseFloatOrDefault(amount, 0);
+                    }
                 }
-                if (!isFirstRole || i > 0) {
-                    r[5] = responsibility;
+                if (typeof amount === "number") {
+                    if (amount > 0) amount = -amount;
                 }
+                r[2] = amount;
+                r[5] = responsibility;
             });
-            // console.log(rows);
             allRows = allRows.concat(rows);
         });
 
         allRows = allRows.sort((a, b) => a[0] - b[0]);
-        return allRows;
+        return [headerRow].concat(allRows);
     }
 
     static summarizeBudgetRows(budgetRows: any[][]) {
@@ -325,7 +359,7 @@ export class Budgeteer {
 
         for (let role in byResponsibility) {
             if (filterResponsibilities && filterResponsibilities.indexOf(role) < 0) { 
-                Logger.log("Skip " + role); 
+                Logging.log("Skip " + role); 
                 continue;
              }
             // Logger.log("Role: " + role);
@@ -404,10 +438,10 @@ export class Budgeteer {
 
         chartSheet.getCharts().forEach(chart => chartSheet.removeChart(chart));
 
-        Logger.log("Add charts " + chartSources.length);
+        Logging.log("Add charts " + chartSources.length);
         for (let chartIndex = 0; chartIndex < chartSources.length; chartIndex++) {
             const src = chartSources[chartIndex];
-            Logger.log("Chart range: " + src.accountId + " " + src.rowStart + " " + src.rowCount + " " + src.colCount);
+            Logging.log("Chart range: " + src.accountId + " " + src.rowStart + " " + src.rowCount + " " + src.colCount);
             Budgeteer.createChart(chartSheet, chartSheet.getRange(src.rowStart + 1, 1, src.rowCount, src.colCount), '' + src.accountId + ' ' + accountIdToName[src.accountId], chartIndex);
         }
     }
