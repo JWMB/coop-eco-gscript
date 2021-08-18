@@ -8,13 +8,14 @@ export interface ITransaction {
 	accountId?: number;
 	accountName?: string;
 	comments?: string;
+	invoiceLink?: string;
 }
 
-export class Transaction implements ITransaction {
+export class Transaction { //implements ITransaction {
 	// Date	Missing	Amount	Supplier	AccountId	AccountName	Comments	InvoiceId	ReceiptId	CurrencyDate	TransactionText	TransactionRef
 
 	static preferredOrder = [
-		"date", "missing", "amount", "supplier", "accountId", "accountName", "comments"
+		"date", "missing", "amount", "supplier", "accountId", "accountName", "comments", "currencyDate", "invoiceLink"
 	];
 	static createDefault() {
 		return <ITransaction>{
@@ -25,14 +26,16 @@ export class Transaction implements ITransaction {
 			accountId: 0,
 			accountName: "",
 			comments: "",
+			invoiceLink: "",
 		};
 	}
 
-	date: Date | undefined;
-	missing: string | undefined;
-	amount: number | undefined;
-	supplier: string | undefined;
-	accountId: number | undefined;
-	accountName: string | undefined;
-	comments: string | undefined;
+	// date: Date | undefined;
+	// missing: string | undefined;
+	// amount: number | undefined;
+	// supplier: string | undefined;
+	// accountId: number | undefined;
+	// accountName: string | undefined;
+	// comments: string | undefined;
+	// invoiceLink: string | undefined;
 }

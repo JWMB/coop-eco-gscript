@@ -9,12 +9,11 @@ Konto	Datum	Summa	Mottagare	Kommentar
 45613	2020-06-01	20000		Besiktiga murar				
 45613	2020-06-01	0		Inte än: 220000 (från underhållsplan)				`;
 
-export const transactionDataShort = `Date	Missing	Amount	Supplier	AccountId	AccountName	Comments	InvoiceId	ReceiptId	CurrencyDate	TransactionText	TransactionRef	AccountChange
-2020-07-13		60125.00	Snickeri Inredning Design	45000		Jonas Beckeman (07-22 06:23):Lekstugor?,Fredrik Benesch (07-22 08:28):Lekstugoroffert var på 81500 + momskunde inte hitta tidigare faktura för förskottsbetatalning?tot summa borde vara 81500 + 3600 ( extra arbete) + moms,Jonas Beckeman (07-24 07:46):Stämmer (se faktura 17/4)	2020_SLR6297_216		2020-07-13			
-2020-07-10		180796.00	SBC Sv Bostadsrättscentrum	43912		Jonas Beckeman (07-22 06:25):Innertak RRV 89,Leif Holmström (07-27 06:38):Inte varit inblandad i denns.Leif,Jonas Beckeman (07-27 07:37):Din?,Martin Ragnevad (07-30 08:56):Japp, godkännes.,Jonas Beckeman (07-30 11:40):Fuktsanering	2020_SLR6297_224		2020-07-10			
-2020-07-10	M,SBC	41569.00	Skatteverket	27300			2020_LR6297_21		2020-07-10			
-2020-07-10	M,SBC	42570.00	Skatteverket	27180			2020_LR6297_21		2020-07-10			
-2020-07-10	M,SBC	78608.00	Skatteverket	0			2020_LR6297_18		2020-07-10			
+export const transactionDataShort = `Date	Missing	Amount	Supplier	AccountId	AccountName	Comments	InvoiceLink	InvoiceId	ReceiptId	CurrencyDate	TransactionText	TransactionRef	AccountChange
+2020-07-13		60125.00	Snickeri Inredning Design	45000	Byggnad Periodiskt underhåll	Jonas Beckeman (07-22 06:23):Lekstugor?,Fredrik Benesch (07-22 08:28):Lekstugoroffert var på 81500 + momskunde inte hitta tidigare faktura för förskottsbetatalning?tot summa borde vara 81500 + 3600 ( extra arbete) + moms,Jonas Beckeman (07-24 07:46):Stämmer (se faktura 17/4)	https://varbrf.sbc.se/InvoiceViewer.aspx?id=4f9eaedb-6f5d-40bc-9475-1224b60a6fb2&amp;ext=pdf	2020_SLR6297_216		2020-07-27			
+2020-07-10		180796.00	SBC Sv Bostadsrättscentrum	43912	Vattenskada Reparationer	Jonas Beckeman (07-22 06:25):Innertak RRV 89,Leif Holmström (07-27 06:38):Inte varit inblandad i denns.Leif,Jonas Beckeman (07-27 07:37):Din?,Martin Ragnevad (07-30 08:56):Japp, godkännes.,Jonas Beckeman (07-30 11:40):Fuktsanering	https://varbrf.sbc.se/InvoiceViewer.aspx?id=6eeca4b6-9cb0-4c1a-93c3-ce3e0aed0669&amp;ext=pdf	2020_SLR6297_224		2020-08-07			
+2020-07-10	M,SBC	41569.00	Skatteverket	27300	N/A			2020_LR6297_21		2020-07-10			
+2020-07-10	M,SBC	42570.00	Skatteverket	27180	N/A			2020_LR6297_21		2020-07-10			
 `;
 
 export const transactionData = `Date	Missing	Amount	Supplier	AccountId	AccountName	Comments	InvoiceId	ReceiptId	CurrencyDate	TransactionText	TransactionRef
