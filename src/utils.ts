@@ -43,6 +43,12 @@ export class DateUtils {
         24
     );
   }
+  static subtractTimezone(d: Date) {
+    console.log(d);
+    d.setTime(d.getTime() - d.getTimezoneOffset() * 60 * 1000);
+    console.log(d);
+    return d;
+  }
 }
 
 export function createGuid(): string {  
@@ -86,6 +92,31 @@ export function toObject(
   }
   return result;
 }
+export function objectsToArrays(objs: any[], includeHeaderRow: boolean, preferredOrder?: string[]) {
+  const result: any[][] = [];
+  if (objs == null || objs.length === 0) {
+    return result;
+  }
+
+  let keys = Object.keys(objs[0]);
+  if (preferredOrder != null) {
+    const filtered = preferredOrder.filter(o => keys.indexOf(o) >= 0);
+    keys = filtered.concat(keys.filter(o => filtered.indexOf(o) < 0));
+  }
+
+  if (includeHeaderRow) {
+    result.push(keys);
+  }
+  for (let index = 0; index < objs.length; index++) {
+    const obj = objs[index];
+    const row: any[] = [];
+    result.push(row);
+    for (const key of keys) {
+      row.push(obj[key]);
+    }
+  }
+  return result;
+}
 
 export function sleep(milliseconds: number) {
   const date = Date.now();
@@ -106,3 +137,33 @@ export function parseFloatOrAny(value: any, defaultValue: any): any {
   const result = parseFloatInternal(value);
   return isNaN(result) ? defaultValue : result;
 } 
+
+export function parseRow<T>(data: any[], columns: string[], defaultRow: T) {
+  const defRowUntyped = <any>defaultRow;
+  const result: any = {};
+  for (let index = 0; index < data.length; index++) {
+    const colName = columns[index];
+    const def = defRowUntyped[colName];
+    result[colName] = parse(data[index], def);
+  }
+  return <T>result;
+}
+
+export function parse(input: any, typed: any) {
+  const type = typeof typed;
+  switch (type) {
+    case "object":
+      if (input == null) return null;
+      const constr = typed.constructor;
+      if (constr != null) {
+        if (constr == Date) {
+          return new Date(input);
+        }
+      }
+      return null;
+    case "string":
+      return "" + input;
+    case "number":
+      return parseFloatOrAny(input, null);
+  }
+}

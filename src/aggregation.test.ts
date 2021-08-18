@@ -1,5 +1,35 @@
-import { Aggregation, GroupingDefinition, AggregationDefinition } from './aggregation';
+import { Aggregation, GroupingDefinition, AggregationDefinition, GroupingDefinitionOfT, AggregationDefinitionOfT, AggregationOfT } from './aggregation';
 import { DateUtils } from './utils';
+
+interface ITestFormat {
+  date: string;
+  cost: number;
+  group: string;
+}
+describe('AggregationOfT', () => {
+  it('works', () => {
+    const data = <ITestFormat[]>[
+      { date: '2000-01-01', cost: 5, group: 'a'},
+      { date: '2000-01-05', cost: 10, group: 'a'},
+      { date: '2000-01-05', cost: 10, group: 'b'},
+      { date: '2000-02-01', cost: 20, group: 'a'},
+      { date: '2000-02-05', cost: 30, group: 'a'},
+      { date: '2000-02-05', cost: 30, group: 'b'},
+    ];
+
+    const grouping: GroupingDefinitionOfT<ITestFormat>[] = [
+      { name: 'Month', func: val => DateUtils.getFirstOfMonthStr(val.date) },
+      { name: 'Group', func: val => val.group },
+    ];
+    const agg: AggregationDefinitionOfT<ITestFormat> = { name: 'Sum', func: (row, prev) => row.cost + (prev || 0) };
+    const result = AggregationOfT.aggregateRows(data, grouping, agg);
+
+    expect(result).toStrictEqual({ 
+      "2000-01-01": { "a": 15, "b": 10 },
+      "2000-02-01": { "a": 50, "b": 30 },
+    });
+  });
+});
 
 describe('Aggregation', () => {
   it('works', () => {
@@ -18,25 +48,18 @@ describe('Aggregation', () => {
     ];
     const agg: AggregationDefinition = { name: 'Sum', col: 1, func: (curr, prev) => curr + (prev || 0) };
     const result = Aggregation.aggregateRows(data, grouping, agg, true);
-    expect(result).toStrictEqual(
-      { 
-        "2000-01-01": {
-          "a": 15,
-          "b": 10
-        },
-        "2000-02-01": {
-          "a": 50,
-          "b": 30
-        },
+    expect(result).toStrictEqual({ 
+        "2000-01-01": { "a": 15, "b": 10 },
+        "2000-02-01": { "a": 50, "b": 30 },
       });
-      const expectedRows = [
+    const expectedRows = [
         ["Month", "Group", "Sum"],
         ["2000-02-01", "b", 30],
         ["2000-02-01", "a", 50],
         ["2000-01-01", "b", 10],
         ["2000-01-01", "a", 15],
-      ];
-      expect(Aggregation.aggregatedToRows(result)).toStrictEqual(expectedRows.slice(1));
-      expect(Aggregation.aggregateIntoRows(data, grouping, agg, true)).toStrictEqual(expectedRows);
+    ];
+    expect(Aggregation.aggregatedToRows(result)).toStrictEqual(expectedRows.slice(1));
+    expect(Aggregation.aggregateIntoRows(data, grouping, agg, true)).toStrictEqual(expectedRows);
   });
 });

@@ -1,8 +1,9 @@
 import { ISheet, Charts, DriveUtils, SpreadsheetApp, ISpreadsheet, SheetUtils, Logging, ISheetRange, SpreadsheetAppUtils } from './utils-google'
-import { KeyValueMap, parseFloatOrAny, parseFloatOrDefault, removeObjectKeys, toObject } from './utils'
-import { Aggregation, AggregationDefinition, AggregationPresets } from './aggregation'
+import { DateUtils, KeyValueMap, objectsToArrays, parseFloatOrAny, parseFloatOrDefault, removeObjectKeys, toObject } from './utils'
+import { Aggregation, AggregationDefinition, AggregationOfT, AggregationPresets } from './aggregation'
 import { Timeseries } from './timeseries'
 import { previousCollected } from './budgeteer.testdata';
+import { ITransaction, Transaction } from './transactions';
 
 export class Budgeteer {
     /**
@@ -10,26 +11,17 @@ export class Budgeteer {
      * @param sheet A budget sheet (Konton or a Eesponsibility sheet)
      * @param transactionSheetSrc sbc_scrape-generated transaction sheet
      */
-    static fillWithTotalAmounts(sheet: ISheet, transactionSheetSrc: ISheet) {
-        //Get data from Transactions spreadsheet:
-        const txSheet = transactionSheetSrc;
-        let columns = SheetUtils.getHeaderColumnsAsObject(txSheet);
-        let data = txSheet.getDataRange().getValues();
-        data = data.slice(1);
-
-        //var rxFilter = null; //new Regexp("");
-        //var filters = Timeseries.createFilters(columns, rxFilter, ss.getSheetByName('filter_accounts'), ss.getSheetByName('filter_tx'));
-        //data = applyFilters(data, filters);
-
+    static fillWithTotalAmounts(sheet: ISheet, transactions: ITransaction[]) {
         //Create aggregate by year and account { <year>: { <account>: <sum>...}...}
-        const aggregateDef: AggregationDefinition = { col: columns.Amount, name: 'Sum', func: (v, p) => (parseInt(v, 10) || 0) + (p || 0) };
-        const aggregated = Aggregation.aggregateRows(data, [
-            { col: columns.Date, name: 'Year', func: v => new Date(v).getFullYear() },
-            { col: columns.AccountId, name: 'Account', func: v => v },
-        ], aggregateDef, false);
+        const aggregated = AggregationOfT.aggregateRows(transactions, [
+                { name: 'Year', func: v => v.date == null ? 0 : v.date.getFullYear() },
+                { name: 'Account', func: v => v.accountId || 0 }
+            ],
+            { name: 'Sum', func: (v, p) => parseFloatOrDefault(v.amount, 0) + (p || 0) }
+        );
 
         //Insert into year columns of Konton spreadsheet:
-        columns = SheetUtils.getHeaderColumnsAsObject(sheet);
+        const columns = SheetUtils.getHeaderColumnsAsObject(sheet);
 
         const rowIndexToAccountId = Budgeteer.getRowIndexToAccountId(sheet, columns.Konto);
         const years = Object.keys(columns).filter(k => k.length == 4)
@@ -293,25 +285,11 @@ export class Budgeteer {
 
     static fillResponsibilitySpreadsheets(
         kontonSpreadsheet: ISpreadsheet, 
-        transactionSpreadsheet: ISpreadsheet, 
+        transactions: ITransaction[], 
         folderForSpreadsheets: string,
         previousCollectedSheet?: ISheet,
         filterResponsibilities?: string[])
     {
-        const txSheet = transactionSpreadsheet.getSheets()[0];
-        let txData = txSheet.getDataRange().getValues();
-
-        let txColumns = SheetUtils.getHeaderColumnsAsObject(txSheet);
-        //Remove unnecessary columns //Not "Missing", important info!
-        const clutterColumns = "InvoiceId	ReceiptId	CurrencyDate	TransactionText	TransactionRef".split('\t');
-        const clutterColumnIndices = clutterColumns.map(function (c) { return txColumns[c]; });
-        for (let ri = 0; ri < txData.length; ri++) {
-            txData[ri] = txData[ri].filter((c, i) => clutterColumnIndices.indexOf(i) < 0);
-        }
-        const txHeaderRow = txData[0];
-        txColumns = toObject(txHeaderRow, (cell, i) => [cell, i]); //Re-index columns
-        txData = txData.slice(1);
-
         const kontonSheet = kontonSpreadsheet.getSheets()[0];
         let columns = SheetUtils.getHeaderColumnsAsObject(kontonSheet);
         const kontonData = kontonSheet.getDataRange().getValues();
@@ -399,12 +377,17 @@ export class Budgeteer {
             SheetUtils.fillSheet(targetSheet, rowsWithHeader);
 
             //Get relevant rows from Transactions sheet (based on accountIds):
-            const accountIds = byResponsibility[role].map(row => row[columns.Konto]);
-            const accountIdToName = toObject(byResponsibility[role], function (row) { return [row[columns.Konto], row[columns.Namn]]; });
+            const accountIds = byResponsibility[role].map(row => parseFloatOrDefault(row[columns.Konto], 0));
+            // const accountIdToName = toObject(byResponsibility[role], function (row) { return [row[columns.Konto], row[columns.Namn]]; });
 
-            const rxFilter = new RegExp("^(" + accountIds.join("|") + ")")
-            const filters = Timeseries.createFilters(txColumns, rxFilter);
-            const txDataForResp = [txHeaderRow].concat(Budgeteer.applyFilters(txData, filters));
+            const txFiltered = transactions
+                .filter(tx => tx.accountId != null && accountIds.indexOf(tx.accountId) >= 0)
+                .map(o => { 
+                    const obj = Object.assign(<any>{}, o);
+                    obj.date = DateUtils.getDateStr(obj.date);
+                    return obj;
+                });
+            const txDataForResp = objectsToArrays(txFiltered, true, Transaction.preferredOrder);
 
             targetSheet = SheetUtils.getOrCreateSheet("Transaktioner", true, spreadsheet);
             SheetUtils.fillSheet(targetSheet, txDataForResp);

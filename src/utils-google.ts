@@ -1,4 +1,4 @@
-import { toObject, KeyValueMap, sleep } from './utils';
+import { toObject, KeyValueMap, sleep, parseRow } from './utils';
 
 // Remove these from built js
 export var SpreadsheetApp: ISpreadsheetApp;
@@ -334,5 +334,32 @@ export class SheetUtils {
       .addRange(sheet.getDataRange())
       .build();
     sheet.insertChart(chart); //Not working... "Those columns are out of bounds"
+  }
+
+  static sheetDataToTypedArray<T>(sheet: ISheet, defaultRow: T) { //createRow: (inData: any[], columns: string[]) => T): T[] {
+    const data = sheet.getDataRange().getValues();
+    const columns = determineColumns(data[0]);
+
+    const result: T[] = [];
+    for (let rowIndex = 1; rowIndex < data.length; rowIndex++) {
+      result.push(parseRowLocal(data[rowIndex], columns));
+    }
+    return result;
+
+    function parseRowLocal(row: any[], cols: string[]) {
+      return parseRow(row, cols, defaultRow);
+    }
+
+    function determineColumns(cols: string[]) {
+      const numNullsDefault = countNulls(<any>parseRowLocal(data[1], cols));
+      const lcColumns = cols.map(c => c.length ? `${c.substr(0, 1).toLowerCase()}${c.substr(1)}` : c);
+      const numNullsLC = countNulls(<any>parseRowLocal(data[1], lcColumns));
+
+      return numNullsDefault > numNullsLC ? lcColumns : cols;
+    }
+    function countNulls(obj: any) {
+      return Object.keys(obj).map(k => obj[k]).filter(val => val == null).length;
+    }
+
   }
 }

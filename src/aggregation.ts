@@ -122,3 +122,54 @@ export class Aggregation {
     //if (key === '23xxx') { Logger.log(dbgPath); Logger.log(key); Logger.log(row[aggregateDef.col]); Logger.log(parentLevel[key]);}
   }
 }
+
+
+export interface GroupingDefinitionOfT<T> {
+  name: string;
+  func(arg: T): (string | number);
+  filter?(arg: T): boolean;
+}
+export interface AggregationDefinitionOfT<T> {
+  name: string;
+  func(arg1: T, arg2: any): any;
+}
+export class AggregationOfT {
+  static aggregate<T>(
+    row: T,
+    resultObj: Object,
+    groupingDefs: GroupingDefinitionOfT<T>[],
+    aggregateDef: AggregationDefinitionOfT<T>
+  ) {
+    let parentLevel = <KeyValueMap<any>>resultObj;
+    for (let i = 0; i < groupingDefs.length - 1; i++) {
+      const def = groupingDefs[i];
+      const key = def.func(row);
+      if (def.filter && !def.filter(row)) {
+        return;
+      }
+      let childLevel = parentLevel[key];
+      if (!childLevel) {
+        childLevel = {};
+        parentLevel[key] = childLevel;
+      }
+      parentLevel = childLevel;
+    }
+    // console.log("ROW", row, resultObj);
+    // Final step:
+    const def = groupingDefs[groupingDefs.length - 1];
+    const key = def.func(row);
+    parentLevel[key] = aggregateDef.func(row, parentLevel[key]);
+  }
+
+  static aggregateRows<T>(
+    data: T[],
+    groupingDefs: GroupingDefinitionOfT<T>[],
+    aggregateDef: AggregationDefinitionOfT<T>,
+  ): KeyValueMap<any> {
+    const result = {};
+    for (let i = 0; i < data.length; i++) {
+      AggregationOfT.aggregate(data[i], result, groupingDefs, aggregateDef);
+    }
+    return result;
+  }
+}

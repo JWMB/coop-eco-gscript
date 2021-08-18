@@ -1,9 +1,10 @@
 import { Budgeteer, ResultatRakning } from './budgeteer'
-import { DriveUtils, SpreadsheetAppUtils } from './utils-google';
-import { KeyValueMap } from './utils'
+import { DriveUtils, SheetUtils, SpreadsheetAppUtils } from './utils-google';
+import { DateUtils, KeyValueMap } from './utils'
 import { MockDriveApp, MockFileSystemObject, MockFolder } from './google.drive.mocks';
 import { MockSheet, MockSpreadsheet, MockSpreadsheetApp } from './google.spreadsheet.mocks';
-import { konton, previousCollected, rrExport, someonesBudget, transactionData } from './budgeteer.testdata';
+import { konton, previousCollected, rrExport, someonesBudget, transactionData, transactionDataShort } from './budgeteer.testdata';
+import { Transaction } from './transactions';
 
 function setupFileStructure() {
     const rootFolder = MockFolder.createTree({ 
@@ -15,9 +16,11 @@ function setupFileStructure() {
                         new MockSheet("0", tsvToRows(rrExport)) ]) },
                     "Transaktioner": { content: new MockSpreadsheet([
                         new MockSheet("0", tsvToRows(transactionData)) ]) },
+                    "TransaktionerShort": { content: new MockSpreadsheet([
+                        new MockSheet("0", tsvToRows(transactionDataShort)) ]) },
                     "Konton": { content: new MockSpreadsheet([
-                        new MockSheet("0", tsvToRows(konton)),
-                        new MockSheet("Collected 2020", tsvToRows(previousCollected)),
+                    new MockSheet("0", tsvToRows(konton)),
+                    new MockSheet("Collected 2020", tsvToRows(previousCollected)),
                     ]) }
                 },
                 folders: {
@@ -40,6 +43,16 @@ beforeEach(() => {
 });
 
 describe('Budget', () => {
+    it('typed_transactions', () => {
+        const sheet = SpreadsheetAppUtils.openSheet("TransaktionerShort");
+        const parsed = SheetUtils.sheetDataToTypedArray(sheet, Transaction.createDefault());
+        // 2020-07-13		60125.00	Snickeri Inredning Design	45000		Jonas Beckeman (07-22 06:23):Lekstugor?,Fredrik Benesch (07-22 08:28):Lekstugoroffert var på 81500 + momskunde inte hitta tidigare faktura för förskottsbetatalning?tot summa borde vara 81500 + 3600 ( extra arbete) + moms,Jonas Beckeman (07-24 07:46):Stämmer (se faktura 17/4)	2020_SLR6297_216		2020-07-13			
+
+        expect(parsed[0].amount).toBe(60125);
+        expect(parsed[0].date).toStrictEqual(DateUtils.subtractTimezone(new Date(2020, 7 - 1, 13)));
+        expect(parsed[0].accountId).toBe(45000);
+    });
+
     it('resultatrakning_rows', () => {
         const budgetVals = ResultatRakning.getRowsByAccountId(SpreadsheetAppUtils.openSheet("190111 Resultaträkning"));
         expect(budgetVals["30110"].budget).toBe(7593000);
@@ -77,7 +90,8 @@ describe('Budget', () => {
         const accountId2Row = Budgeteer.getRowIndexToAccountId(xsheet, 0);
         expect(accountId2Row).toStrictEqual({'1': 46100, '2': 65500 });
 
-        Budgeteer.fillWithTotalAmounts(xsheet, SpreadsheetAppUtils.openSheet("Transaktioner"));
+        const transactions = SheetUtils.sheetDataToTypedArray(SpreadsheetAppUtils.openSheet("Transaktioner"), Transaction.createDefault());
+        Budgeteer.fillWithTotalAmounts(xsheet, transactions);
         expect(xsheet.rows[1][2]).toBe(508);
         expect(xsheet.rows[2][2]).toBe(-17631);
     });
@@ -101,7 +115,7 @@ describe('Budget', () => {
 
         Budgeteer.fillResponsibilitySpreadsheets(
             SpreadsheetAppUtils.openByName("Konton"), 
-            SpreadsheetAppUtils.openByName("Transaktioner"), 
+            SheetUtils.sheetDataToTypedArray(SpreadsheetAppUtils.openByName("Transaktioner").getSheets()[0], Transaction.createDefault()), 
             budgetFolderName,
             SpreadsheetAppUtils.openSheet("Konton", null, "Collected 2020")
         ); //, ["Utemiljö", "Förvaltarkontakt", "Ordförande"]);
@@ -120,7 +134,7 @@ describe('Budget', () => {
         expect(totalsRow).toStrictEqual([ 'TOTAL', -237254, -166474, 0, -169500, -228000, 182, -315500, '', '', '' ]);
 
         const row2 = budgetUte.getSheets()[1].getDataRange().getValues()[1];
-        expect(row2.slice(0,4)).toStrictEqual(["2020-07-20 0:00:00", "",  -17796, "TrädgårdsHuset"]);
+        expect(row2.slice(0,4)).toStrictEqual(["2020-07-20", "",  -17796, "TrädgårdsHuset"]);
 
         expect(budgetUte.getSheets()[2].getDataRange().getValues().length).toBe(8);
 
@@ -129,7 +143,7 @@ describe('Budget', () => {
 
         const collectedBudgets = Budgeteer.collectFromResponsibilitySheets(budgetFolderName);
         expect(collectedBudgets[0][0]).toBe("Konto");
-        console.log(collectedBudgets);
+        // console.log(collectedBudgets);
         // all roles except Utemiljö (b/c specifically defined document) should only have defaults (11110 Firma AB etc)
         const defaultRow = Budgeteer.budgetDefaultResponsibility[1];
         const defaultRows = collectedBudgets.filter(r => r[0] == defaultRow[0]);
@@ -167,4 +181,8 @@ function toNumericOrString(val: any): string | number {
 
 function tsvToRows(data: string) {
     return data.split('\n').map(r => r.split('\t').map(c => toNumericOrString(c)));
+}
+
+function subtractTimezone(arg0: Date): any {
+    throw new Error('Function not implemented.');
 }
