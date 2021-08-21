@@ -115,7 +115,7 @@ describe('Budget', () => {
 
         Budgeteer.fillResponsibilitySpreadsheets(
             SpreadsheetAppUtils.openByName("Konton"), 
-            SheetUtils.sheetDataToTypedArray(SpreadsheetAppUtils.openByName("Transaktioner").getSheets()[0], Transaction.createDefault()), 
+            SpreadsheetAppUtils.openGetAsTypedArray("Transaktioner", Transaction.createDefault()),
             budgetFolderName,
             SpreadsheetAppUtils.openSheet("Konton", null, "Collected 2020")
         ); //, ["Utemiljö", "Förvaltarkontakt", "Ordförande"]);

@@ -4,13 +4,18 @@ import { toObject, KeyValueMap, sleep, parseRow } from './utils';
 export var SpreadsheetApp: ISpreadsheetApp;
 export var DriveApp: IDriveApp;
 export var Charts: ICharts;
-export class Logging {
+export class Logger {
   static log(val: any): void {
     console.log(val);
   }
 }
 // End remove
 
+export class Logging {
+  static log(val: any): void {
+    console.log(val);
+  }
+}
 
 // shims
 export interface IDriveApp {
@@ -196,6 +201,12 @@ export class SpreadsheetAppUtils
     }
     return file;
   }
+
+  static openGetAsTypedArray<T>(name: string, defaultTyped:T, sheetIndexOrName: string | number = 0) {
+    const ss = SpreadsheetAppUtils.openByName(name);
+    const sheet = (typeof sheetIndexOrName == "number") ? ss.getSheets()[0] : ss.getSheetByName(sheetIndexOrName);
+    return SheetUtils.sheetDataToTypedArray(sheet, defaultTyped);
+  }
 }
 
 export class DriveUtils {
@@ -204,15 +215,26 @@ export class DriveUtils {
   static getSingleFolder(name: string): IFolder {
     try {
       return DriveUtils.iterateSingle(DriveUtils.MyDriveApp.getFoldersByName(name));
-    }
-    catch (err) {
-      throw new Error("Folder doesn't exist: " + name);
+    } catch (err) {
+      throw new Error(DriveUtils.getIteratorErrorMessage(err, name));
     }
   }
   static getSingleFile(name: string): IFile {
-    return DriveUtils.iterateSingle(DriveUtils.MyDriveApp.getFilesByName(name));
+    try {
+      return DriveUtils.iterateSingle(DriveUtils.MyDriveApp.getFilesByName(name));
+    } catch (err) {
+      throw new Error(DriveUtils.getIteratorErrorMessage(err, name));
+    }
+  }
+  static getAllFiles(name: string): IFile[] {
+    return DriveUtils.iterateToArray(DriveUtils.MyDriveApp.getFilesByName(name));
   }
 
+  static getIteratorErrorMessage(error: any, item: string) {
+    if (error.toString().indexOf(">1 in iterator") >= 0) return "Multiple items named '" + item + "'";
+    return "No items named '" + item + "' found";
+  }
+  
   static getFilesInFolderName(folderName: string, predicate?: (item: IFile) => boolean): IFile[] {
     const folder = DriveUtils.getSingleFolder(folderName);
     return DriveUtils.iterateToArray(folder.getFiles(), predicate);
